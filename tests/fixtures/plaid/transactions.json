@@ -1,0 +1,144 @@
+{
+  "accounts": [],
+  "transactions": [
+    {
+      "transaction_id": "plaid_tx_001",
+      "account_id": "plaid_acc_checking",
+      "amount": 28.34,
+      "iso_currency_code": "USD",
+      "date": "2026-02-20",
+      "name": "DOORDASH*BURGER KING",
+      "merchant_name": "Burger King",
+      "original_description": "DOORDASH*BURGER KING 800-555-1234 CA",
+      "pending": false,
+      "payment_channel": "online",
+      "category": ["Food and Drink", "Restaurants", "Fast Food"],
+      "personal_finance_category": {
+        "primary": "FOOD_AND_DRINK",
+        "detailed": "FOOD_AND_DRINK_FAST_FOOD",
+        "confidence_level": "VERY_HIGH"
+      },
+      "counterparties": [
+        {
+          "name": "DoorDash",
+          "type": "marketplace",
+          "confidence_level": "HIGH"
+        },
+        {
+          "name": "Burger King",
+          "type": "merchant",
+          "confidence_level": "VERY_HIGH"
+        }
+      ],
+      "logo_url": "https://plaid-merchant-logos.plaid.com/burger_king_155.png",
+      "website": "burgerking.com"
+    },
+    {
+      "transaction_id": "plaid_tx_002",
+      "account_id": "plaid_acc_checking",
+      "amount": -3500.00,
+      "iso_currency_code": "USD",
+      "date": "2026-02-19",
+      "name": "TECHCORP INC PAYROLL",
+      "merchant_name": null,
+      "original_description": "TECHCORP INC PAYROLL DIR DEP",
+      "pending": false,
+      "payment_channel": "other",
+      "category": ["Transfer", "Payroll"],
+      "personal_finance_category": {
+        "primary": "INCOME",
+        "detailed": "INCOME_WAGES",
+        "confidence_level": "VERY_HIGH"
+      },
+      "counterparties": [
+        {
+          "name": "TechCorp Inc",
+          "type": "financial_institution",
+          "confidence_level": "HIGH"
+        }
+      ],
+      "logo_url": null,
+      "website": null
+    },
+    {
+      "transaction_id": "plaid_tx_003",
+      "account_id": "plaid_acc_checking",
+      "amount": 15.99,
+      "iso_currency_code": "USD",
+      "date": "2026-02-18",
+      "name": "Netflix",
+      "merchant_name": "Netflix",
+      "original_description": "NETFLIX.COM NETFLIX.COM CA",
+      "pending": false,
+      "payment_channel": "online",
+      "category": ["Service", "Subscription"],
+      "personal_finance_category": {
+        "primary": "ENTERTAINMENT",
+        "detailed": "ENTERTAINMENT_TV_AND_MOVIES",
+        "confidence_level": "VERY_HIGH"
+      },
+      "counterparties": [
+        {
+          "name": "Netflix",
+          "type": "merchant",
+          "confidence_level": "VERY_HIGH"
+        }
+      ],
+      "logo_url": "https://plaid-merchant-logos.plaid.com/netflix_230.png",
+      "website": "netflix.com"
+    },
+    {
+      "transaction_id": "plaid_tx_004",
+      "account_id": "plaid_acc_checking",
+      "amount": 89.50,
+      "iso_currency_code": "USD",
+      "date": "2026-02-17",
+      "name": "Whole Foods Market",
+      "merchant_name": "Whole Foods",
+      "original_description": "WHOLEFDS MKT 10847",
+      "pending": false,
+      "payment_channel": "in store",
+      "category": ["Shops", "Supermarkets and Groceries"],
+      "personal_finance_category": {
+        "primary": "FOOD_AND_DRINK",
+        "detailed": "FOOD_AND_DRINK_GROCERIES",
+        "confidence_level": "VERY_HIGH"
+      },
+      "counterparties": [
+        {
+          "name": "Whole Foods",
+          "type": "merchant",
+          "confidence_level": "VERY_HIGH"
+        }
+      ],
+      "logo_url": "https://plaid-merchant-logos.plaid.com/whole_foods_432.png",
+      "website": "wholefoodsmarket.com"
+    },
+    {
+      "transaction_id": "plaid_tx_005",
+      "account_id": "plaid_acc_checking",
+      "amount": 500.00,
+      "iso_currency_code": "USD",
+      "date": "2026-02-15",
+      "name": "Transfer to Savings",
+      "merchant_name": null,
+      "original_description": "Online Transfer to SAV ...5678",
+      "pending": false,
+      "payment_channel": "online",
+      "category": ["Transfer", "Account Transfer"],
+      "personal_finance_category": {
+        "primary": "TRANSFER_OUT",
+        "detailed": "TRANSFER_OUT_ACCOUNT_TRANSFER",
+        "confidence_level": "VERY_HIGH"
+      },
+      "counterparties": [],
+      "logo_url": null,
+      "website": null
+    }
+  ],
+  "total_transactions": 5,
+  "item": {
+    "item_id": "item_test_001"
+  },
+  "request_id": "req_tx_456"
+}

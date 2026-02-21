@@ -1,0 +1,52 @@
+{
+  "accounts": [
+    {
+      "account_id": "plaid_acc_checking",
+      "balances": {
+        "available": 5250.00,
+        "current": 5400.00,
+        "iso_currency_code": "USD",
+        "limit": null
+      },
+      "mask": "1234",
+      "name": "Plaid Checking",
+      "official_name": "Gold Standard 0% Interest Checking",
+      "subtype": "checking",
+      "type": "depository"
+    },
+    {
+      "account_id": "plaid_acc_savings",
+      "balances": {
+        "available": 25000.00,
+        "current": 25000.00,
+        "iso_currency_code": "USD",
+        "limit": null
+      },
+      "mask": "5678",
+      "name": "Plaid Saving",
+      "official_name": "High-Yield Savings",
+      "subtype": "savings",
+      "type": "depository"
+    },
+    {
+      "account_id": "plaid_acc_credit",
+      "balances": {
+        "available": 8500.00,
+        "current": 1500.00,
+        "iso_currency_code": "USD",
+        "limit": 10000
+      },
+      "mask": "9012",
+      "name": "Plaid Credit Card",
+      "official_name": null,
+      "subtype": "credit card",
+      "type": "credit"
+    }
+  ],
+  "item": {
+    "item_id": "item_test_001",
+    "institution_id": "ins_1",
+    "institution_name": "First Platypus Bank"
+  },
+  "request_id": "req_abc123"
+}

@@ -16,6 +16,7 @@ This walks you through connecting your bank. Currently supported:
 |----------|----------|------|
 | **Enable Banking (PSD2)** | 2000+ European banks | RSA key + session |
 | **Teller (US)** | 7000+ US banks | mTLS certificate + access token |
+| **Plaid (US/CA/EU)** | 12,000+ institutions | Client ID + secret + access token |
 | **Mock** | Demo data | None |
 
 ### 2. Add to your MCP client
@@ -167,6 +168,21 @@ npx @bank-mcp/server init
 ```
 
 Teller uses **mutual TLS** (mTLS) — your app authenticates at the TLS layer via client certificate, then individual enrollments authenticate via HTTP Basic Auth with the access token. Free tier supports up to 100 live connections.
+
+## Plaid Setup
+
+You need:
+1. A [Plaid](https://plaid.com) developer account (free signup)
+2. Your Client ID and Secret (from the Plaid dashboard)
+3. An access token from a Plaid Link enrollment
+
+```bash
+npx @bank-mcp/server init
+# Select: Plaid (US/CA/EU)
+# Enter: client ID, secret, access token, environment
+```
+
+Plaid supports three environments: `sandbox` (fake data, instant), `development` (100 live Items, needs approval), and `production` (unlimited, needs security review). Start with sandbox to test your setup. Plaid provides the richest transaction categorization (104 sub-categories with confidence scores) — ideal for LLM-driven analysis.
 
 ## Development
 
