@@ -1,0 +1,54 @@
+{
+  "transactions": [
+    {
+      "entry_reference": "REF-001",
+      "transaction_id": "txn-001",
+      "transaction_amount": { "amount": "-150.50", "currency": "PLN" },
+      "booking_date": "2026-02-15",
+      "credit_debit_indicator": "DBIT",
+      "creditor": { "name": "Biedronka Sp. z o.o." },
+      "debtor": { "name": "Jan Kowalski" },
+      "remittance_information": ["Zakupy spożywcze", "Transakcja kartą"]
+    },
+    {
+      "entry_reference": "REF-002",
+      "transaction_id": "txn-002",
+      "transaction_amount": { "amount": "12500.00", "currency": "PLN" },
+      "booking_date": "2026-02-10",
+      "credit_debit_indicator": "CRDT",
+      "creditor": { "name": "Jan Kowalski" },
+      "debtor": { "name": "TechCorp Sp. z o.o." },
+      "remittance_information": ["Wynagrodzenie za luty 2026"]
+    },
+    {
+      "entry_reference": "REF-003",
+      "transaction_id": "txn-003",
+      "transaction_amount": { "amount": "-43.00", "currency": "PLN" },
+      "booking_date": "2026-02-14",
+      "credit_debit_indicator": "DBIT",
+      "creditor": { "name": "Netflix International" },
+      "debtor": { "name": "Jan Kowalski" },
+      "remittance_information": ["Netflix Monthly Subscription"]
+    },
+    {
+      "entry_reference": "REF-004",
+      "transaction_id": "txn-004",
+      "transaction_amount": { "amount": "-250.00", "currency": "PLN" },
+      "booking_date": "2026-02-12",
+      "credit_debit_indicator": "DBIT",
+      "creditor": { "name": "Orlen S.A." },
+      "debtor": { "name": "Jan Kowalski" },
+      "remittance_information": ["Tankowanie paliwa"]
+    },
+    {
+      "entry_reference": null,
+      "transaction_id": "txn-005",
+      "transaction_amount": { "amount": "-79.00", "currency": "PLN" },
+      "booking_date": "2026-02-11",
+      "credit_debit_indicator": "DBIT",
+      "creditor": { "name": "Orange Polska" },
+      "remittance_information": ["Faktura za telefon"]
+    }
+  ],
+  "continuation_key": null
+}

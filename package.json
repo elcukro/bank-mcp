@@ -1,0 +1,50 @@
+{
+  "name": "@bank-mcp/server",
+  "version": "0.1.0",
+  "description": "Banking data MCP server — give your AI assistant read-only access to bank accounts via pluggable providers",
+  "type": "module",
+  "bin": {
+    "bank-mcp": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint src/ tests/",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "banking",
+    "psd2",
+    "enable-banking",
+    "ai",
+    "llm",
+    "claude"
+  ],
+  "author": "Luke",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.25.0",
+    "jsonwebtoken": "^9.0.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/jsonwebtoken": "^9.0.0",
+    "@types/node": "^22.0.0",
+    "eslint": "^9.0.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ]
+}

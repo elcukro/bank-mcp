@@ -1,0 +1,12 @@
+{
+  "balances": [
+    {
+      "balance_amount": { "amount": "12450.67", "currency": "PLN" },
+      "balance_type": "closingBooked"
+    },
+    {
+      "balance_amount": { "amount": "12700.67", "currency": "PLN" },
+      "balance_type": "expected"
+    }
+  ]
+}

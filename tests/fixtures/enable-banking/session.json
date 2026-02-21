@@ -1,0 +1,24 @@
+{
+  "session_id": "ses_test123456",
+  "accounts": [
+    {
+      "uid": "acc-uid-001",
+      "iban": "PL61109010140000071219812874",
+      "account_name": "Konto Direct",
+      "currency": "PLN"
+    },
+    {
+      "uid": "acc-uid-002",
+      "iban": "PL72109010140000071219812999",
+      "account_name": "Konto Oszczednosciowe",
+      "currency": "PLN"
+    }
+  ],
+  "aspsp": {
+    "name": "ING Bank Śląski",
+    "country": "PL"
+  },
+  "access": {
+    "valid_until": "2026-05-21T00:00:00.000Z"
+  }
+}
