@@ -4,7 +4,7 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import { zodToJsonSchema } from "./utils/zod-to-json.js";
+import { z } from "zod";
 
 import { listAccountsSchema, listAccounts } from "./tools/list-accounts.js";
 import {
@@ -26,31 +26,31 @@ const TOOLS = [
     name: "list_accounts",
     description:
       "List all bank accounts across configured connections. Returns account UIDs, IBANs, names, and currencies.",
-    inputSchema: zodToJsonSchema(listAccountsSchema),
+    inputSchema: z.toJSONSchema(listAccountsSchema),
   },
   {
     name: "list_transactions",
     description:
       "List bank transactions with optional filters. Defaults to last 90 days. Supports date range, amount range, and debit/credit type filtering.",
-    inputSchema: zodToJsonSchema(listTransactionsSchema),
+    inputSchema: z.toJSONSchema(listTransactionsSchema),
   },
   {
     name: "search_transactions",
     description:
       "Full-text search across transaction descriptions, merchant names, and references. Use for finding specific payments or payees.",
-    inputSchema: zodToJsonSchema(searchTransactionsSchema),
+    inputSchema: z.toJSONSchema(searchTransactionsSchema),
   },
   {
     name: "get_balance",
     description:
       "Get current account balance(s). Returns closing booked balance and expected balance when available.",
-    inputSchema: zodToJsonSchema(getBalanceSchema),
+    inputSchema: z.toJSONSchema(getBalanceSchema),
   },
   {
     name: "spending_summary",
     description:
       'Group expenses by merchant or category with totals. Shows where money is being spent. Use groupBy "merchant" for vendor breakdown, "category" for category breakdown.',
-    inputSchema: zodToJsonSchema(spendingSummarySchema),
+    inputSchema: z.toJSONSchema(spendingSummarySchema),
   },
 ];
 
