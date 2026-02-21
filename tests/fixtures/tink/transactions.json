@@ -1,0 +1,154 @@
+{
+  "transactions": [
+    {
+      "id": "tink_tx_001",
+      "accountId": "tink_acc_checking",
+      "amount": {
+        "unscaledValue": "2834",
+        "scale": 2,
+        "currencyCode": "EUR"
+      },
+      "dates": {
+        "booked": "2026-02-20"
+      },
+      "descriptions": {
+        "display": "Lidl Berlin Alexanderplatz",
+        "original": "LIDL SAGT DANKE 1234//Berlin/DE"
+      },
+      "status": "BOOKED",
+      "types": {
+        "type": "DEBIT"
+      },
+      "merchantInformation": {
+        "merchantName": "Lidl",
+        "merchantCategoryCode": "5411"
+      },
+      "categories": {
+        "pfm": {
+          "id": "pfm_groceries",
+          "name": "Groceries"
+        }
+      },
+      "reference": "LIDL-2026-02-20"
+    },
+    {
+      "id": "tink_tx_002",
+      "accountId": "tink_acc_checking",
+      "amount": {
+        "unscaledValue": "350000",
+        "scale": 2,
+        "currencyCode": "EUR"
+      },
+      "dates": {
+        "booked": "2026-02-19"
+      },
+      "descriptions": {
+        "display": "ACME GmbH Salary",
+        "original": "ACME GMBH GEHALT FEB 2026",
+        "detailed": {
+          "unstructured": "Monthly salary payment February 2026"
+        }
+      },
+      "status": "BOOKED",
+      "types": {
+        "type": "CREDIT"
+      },
+      "merchantInformation": null,
+      "categories": {
+        "pfm": {
+          "id": "pfm_salary",
+          "name": "Salary"
+        }
+      },
+      "reference": "SALARY-FEB-2026"
+    },
+    {
+      "id": "tink_tx_003",
+      "accountId": "tink_acc_checking",
+      "amount": {
+        "unscaledValue": "1299",
+        "scale": 2,
+        "currencyCode": "EUR"
+      },
+      "dates": {
+        "booked": "2026-02-18"
+      },
+      "descriptions": {
+        "display": "Spotify Premium",
+        "original": "SPOTIFY AB//Stockholm/SE"
+      },
+      "status": "BOOKED",
+      "types": {
+        "type": "DEBIT"
+      },
+      "merchantInformation": {
+        "merchantName": "Spotify",
+        "merchantCategoryCode": "5815"
+      },
+      "categories": {
+        "pfm": {
+          "id": "pfm_entertainment",
+          "name": "Entertainment"
+        }
+      }
+    },
+    {
+      "id": "tink_tx_004",
+      "accountId": "tink_acc_checking",
+      "amount": {
+        "unscaledValue": "8950",
+        "scale": 2,
+        "currencyCode": "EUR"
+      },
+      "dates": {
+        "booked": "2026-02-17"
+      },
+      "descriptions": {
+        "display": "REWE Supermarkt",
+        "original": "REWE MARKT GMBH//BERLIN/DE"
+      },
+      "status": "BOOKED",
+      "types": {
+        "type": "DEBIT"
+      },
+      "merchantInformation": {
+        "merchantName": "REWE",
+        "merchantCategoryCode": "5411"
+      },
+      "categories": {
+        "pfm": {
+          "id": "pfm_groceries",
+          "name": "Groceries"
+        }
+      }
+    },
+    {
+      "id": "tink_tx_005",
+      "accountId": "tink_acc_checking",
+      "amount": {
+        "unscaledValue": "50000",
+        "scale": 2,
+        "currencyCode": "EUR"
+      },
+      "dates": {
+        "booked": "2026-02-15"
+      },
+      "descriptions": {
+        "display": "Transfer to Savings",
+        "original": "SEPA Transfer to DE62370400440532013001"
+      },
+      "status": "BOOKED",
+      "types": {
+        "type": "DEBIT"
+      },
+      "merchantInformation": null,
+      "categories": {
+        "pfm": {
+          "id": "pfm_transfers",
+          "name": "Transfers"
+        }
+      }
+    }
+  ],
+  "nextPageToken": null
+}

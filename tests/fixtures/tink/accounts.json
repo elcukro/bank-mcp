@@ -1,0 +1,65 @@
+{
+  "accounts": [
+    {
+      "id": "tink_acc_checking",
+      "name": "Main Checking Account",
+      "type": "CHECKING",
+      "identifiers": {
+        "iban": {
+          "iban": "DE89370400440532013000"
+        }
+      },
+      "balances": {
+        "booked": {
+          "amount": {
+            "unscaledValue": "540075",
+            "scale": 2,
+            "currencyCode": "EUR"
+          }
+        },
+        "available": {
+          "amount": {
+            "unscaledValue": "525000",
+            "scale": 2,
+            "currencyCode": "EUR"
+          }
+        }
+      }
+    },
+    {
+      "id": "tink_acc_savings",
+      "name": "High-Yield Savings",
+      "type": "SAVINGS",
+      "identifiers": {
+        "iban": {
+          "iban": "DE62370400440532013001"
+        }
+      },
+      "balances": {
+        "booked": {
+          "amount": {
+            "unscaledValue": "2500000",
+            "scale": 2,
+            "currencyCode": "EUR"
+          }
+        }
+      }
+    },
+    {
+      "id": "tink_acc_credit",
+      "name": "Visa Gold",
+      "type": "CREDIT_CARD",
+      "identifiers": {},
+      "balances": {
+        "booked": {
+          "amount": {
+            "unscaledValue": "150000",
+            "scale": 2,
+            "currencyCode": "EUR"
+          }
+        }
+      }
+    }
+  ],
+  "nextPageToken": null
+}

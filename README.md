@@ -17,6 +17,7 @@ This walks you through connecting your bank. Currently supported:
 | **Enable Banking (PSD2)** | 2000+ European banks | RSA key + session |
 | **Teller (US)** | 7000+ US banks | mTLS certificate + access token |
 | **Plaid (US/CA/EU)** | 12,000+ institutions | Client ID + secret + access token |
+| **Tink (EU)** | 3,400+ European banks | OAuth2 access token |
 | **Mock** | Demo data | None |
 
 ### 2. Add to your MCP client
@@ -82,6 +83,9 @@ src/
   providers/
     base.ts            # Abstract BankProvider class
     enable-banking/    # PSD2 via Enable Banking API
+    teller/            # US banks via mTLS
+    plaid/             # US/CA/EU via Plaid API
+    tink/              # EU Open Banking via Tink API
     mock/              # Deterministic fake data
   tools/               # MCP tool implementations
   utils/
@@ -183,6 +187,20 @@ npx @bank-mcp/server init
 ```
 
 Plaid supports three environments: `sandbox` (fake data, instant), `development` (100 live Items, needs approval), and `production` (unlimited, needs security review). Start with sandbox to test your setup. Plaid provides the richest transaction categorization (104 sub-categories with confidence scores) — ideal for LLM-driven analysis.
+
+## Tink Setup
+
+You need:
+1. A [Tink](https://tink.com) developer account (free for testing)
+2. An OAuth2 access token (from the Tink Console or your OAuth2 flow)
+
+```bash
+npx @bank-mcp/server init
+# Select: Tink (EU Open Banking)
+# Enter: access token
+```
+
+Tink covers 3,400+ banks across Europe through PSD2/Open Banking. Transactions include PFM (Personal Finance Management) categories with merchant enrichment. Amounts use fixed-point decimals for precision — no floating-point rounding issues.
 
 ## Development
 

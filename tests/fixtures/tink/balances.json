@@ -1,0 +1,18 @@
+{
+  "balances": {
+    "bookedBalance": {
+      "amount": {
+        "unscaledValue": "540075",
+        "scale": 2,
+        "currencyCode": "EUR"
+      }
+    },
+    "availableBalance": {
+      "amount": {
+        "unscaledValue": "525000",
+        "scale": 2,
+        "currencyCode": "EUR"
+      }
+    }
+  }
+}

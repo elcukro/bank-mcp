@@ -2,6 +2,7 @@ import type { BankProvider } from "./base.js";
 import { EnableBankingProvider } from "./enable-banking/index.js";
 import { TellerProvider } from "./teller/index.js";
 import { PlaidProvider } from "./plaid/index.js";
+import { TinkProvider } from "./tink/index.js";
 import { MockProvider } from "./mock/index.js";
 
 const providers = new Map<string, BankProvider>();
@@ -13,6 +14,7 @@ function register(provider: BankProvider): void {
 register(new EnableBankingProvider());
 register(new TellerProvider());
 register(new PlaidProvider());
+register(new TinkProvider());
 register(new MockProvider());
 
 export function getProvider(name: string): BankProvider {
