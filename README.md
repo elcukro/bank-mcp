@@ -25,12 +25,13 @@ Most people manage their finances by logging into bank portals, downloading CSVs
 
 - [Supported Providers](#supported-providers)
 - [Quick Start](#quick-start)
+- [Client Setup](#client-setup)
 - [Available Tools](#available-tools)
 - [Architecture](#architecture)
 - [Provider Setup Guides](#provider-setup-guides)
 - [Caching](#caching)
 - [Multiple Connections](#multiple-connections)
-- [Security & Privacy](#security--privacy)
+- [Security](#security)
 - [Adding a New Provider](#adding-a-new-provider)
 - [Development](#development)
 - [Contributing](#contributing)
@@ -70,6 +71,8 @@ The interactive wizard walks you through selecting a provider and entering crede
 
 ### 2. Add to your MCP client
 
+Add bank-mcp to your AI tool's MCP configuration. Here's the most common setup:
+
 **Claude Code** (`.mcp.json` in your project root or `~/.claude/.mcp.json` globally):
 
 ```json
@@ -83,18 +86,7 @@ The interactive wizard walks you through selecting a provider and entering crede
 }
 ```
 
-**Claude Desktop** (`claude_desktop_config.json`):
-
-```json
-{
-  "mcpServers": {
-    "bank": {
-      "command": "npx",
-      "args": ["@bank-mcp/server"]
-    }
-  }
-}
-```
+> **Using a different tool?** See [Client Setup](#client-setup) for Claude Desktop, Cursor, VS Code, Windsurf, Codex CLI, Gemini CLI, and Zed.
 
 ### 3. Try it
 
@@ -116,6 +108,146 @@ npx @bank-mcp/server --mock
 ```
 
 This launches with a mock provider that generates deterministic sample accounts and transactions — perfect for testing your setup or building on top of bank-mcp before connecting real accounts.
+
+## Client Setup
+
+bank-mcp works with any MCP-compatible client. Pick your tool below.
+
+### Claude Code
+
+Add to `.mcp.json` in your project root (or `~/.claude/.mcp.json` for all projects):
+
+```json
+{
+  "mcpServers": {
+    "bank": {
+      "command": "npx",
+      "args": ["@bank-mcp/server"]
+    }
+  }
+}
+```
+
+Or add via the CLI:
+
+```bash
+claude mcp add bank -- npx @bank-mcp/server
+```
+
+### Claude Desktop
+
+Add to your `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "bank": {
+      "command": "npx",
+      "args": ["@bank-mcp/server"]
+    }
+  }
+}
+```
+
+Config file location:
+- **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
+
+### Cursor
+
+Add to `.cursor/mcp.json` in your project root (or `~/.cursor/mcp.json` globally):
+
+```json
+{
+  "mcpServers": {
+    "bank": {
+      "command": "npx",
+      "args": ["@bank-mcp/server"]
+    }
+  }
+}
+```
+
+### VS Code (Copilot)
+
+Add to `.vscode/mcp.json` in your workspace:
+
+```json
+{
+  "servers": {
+    "bank": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["@bank-mcp/server"]
+    }
+  }
+}
+```
+
+### Windsurf
+
+Add to `~/.codeium/windsurf/mcp_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "bank": {
+      "command": "npx",
+      "args": ["@bank-mcp/server"]
+    }
+  }
+}
+```
+
+### OpenAI Codex CLI
+
+Add to `~/.codex/config.toml` (or `.codex/config.toml` in your project):
+
+```toml
+[mcp_servers.bank]
+command = "npx"
+args = ["@bank-mcp/server"]
+```
+
+Or add via the CLI:
+
+```bash
+codex mcp add bank -- npx @bank-mcp/server
+```
+
+### Gemini CLI
+
+Add to `~/.gemini/settings.json` (or `.gemini/settings.json` in your project):
+
+```json
+{
+  "mcpServers": {
+    "bank": {
+      "command": "npx",
+      "args": ["@bank-mcp/server"]
+    }
+  }
+}
+```
+
+### Zed
+
+Add to your Zed `settings.json`:
+
+```json
+{
+  "context_servers": {
+    "bank": {
+      "command": {
+        "path": "npx",
+        "args": ["@bank-mcp/server"]
+      }
+    }
+  }
+}
+```
+
+> **Don't see your tool?** bank-mcp uses standard MCP stdio transport. Any client that supports MCP stdio servers can connect using `npx @bank-mcp/server` as the command.
 
 ## Available Tools
 
@@ -320,15 +452,54 @@ Configure as many bank connections as you need — even across different provide
 
 All tools accept an optional `connectionId` parameter to target a specific connection. When omitted, every connection is queried and results are merged — so "show all my balances" works across banks automatically.
 
-## Security & Privacy
+## Security
 
-bank-mcp is designed with a security-first mindset:
+### Design Principles
 
-- **Read-only by design** — the provider interface has no write methods. There is no way to initiate transfers, modify accounts, or take any action on your behalf.
-- **Local credentials only** — your config file (`~/.bank-mcp/config.json`) is created with `600` permissions (owner read/write only). Credentials never leave your machine.
-- **No telemetry** — bank-mcp collects zero analytics, sends no crash reports, and phones home to nobody.
-- **No external data sharing** — transaction data flows directly from your bank's API to your local MCP client. Nothing is stored remotely.
-- **Open source** — every line is auditable. No obfuscated code, no compiled blobs.
+bank-mcp handles sensitive financial credentials. Its security posture is built on minimizing attack surface:
+
+- **Read-only by design** — the `BankProvider` interface exposes only read methods (`listAccounts`, `listTransactions`, `getBalance`). There are no write methods — no transfers, no account modifications, no payment initiation. This is enforced at the type level, not by convention.
+- **No network listener** — bank-mcp runs as a stdio process (stdin/stdout), not an HTTP server. There is no open port, no attack surface from the network.
+- **Minimal dependencies** — only 3 runtime dependencies (`@modelcontextprotocol/sdk`, `jsonwebtoken`, `zod`). Fewer dependencies means fewer supply chain risks.
+- **Open source** — every line is auditable. No obfuscated code, no compiled blobs, no telemetry.
+
+### Credential Storage
+
+- Config file at `~/.bank-mcp/config.json` is created with **`600` permissions** (owner read/write only)
+- RSA keys and certificates are stored in `~/.bank-mcp/keys/` with the same restrictive permissions
+- Credentials are **never logged** — the server sanitizes config objects before any debug output
+- No credential caching beyond the process lifetime — when the server stops, credentials exist only on disk
+
+### Data Flow
+
+```
+Your Bank's API ← HTTPS → bank-mcp (local process) ← stdio → MCP Client (local)
+```
+
+- Transaction data flows directly from your bank's API to your local MCP client
+- **Nothing is stored remotely** — no cloud relay, no proxy server, no intermediate storage
+- **No telemetry** — zero analytics, no crash reports, no usage tracking, no phone-home
+- In-memory cache is per-process and dies when the server stops
+
+### What Your MCP Client Sees
+
+The MCP client (Claude, Cursor, etc.) receives structured tool results containing:
+- Account names, types, and balances
+- Transaction descriptions, amounts, dates, and categories
+- Spending summaries
+
+The LLM processes this in its context window. Be aware that cloud-hosted LLMs send your conversation (including tool results) to their servers. If this is a concern, use a local model or review your provider's data retention policy.
+
+### Recommendations
+
+- **Rotate tokens** — if your banking provider supports token rotation, enable it
+- **Use sandbox first** — test your setup with mock data or Plaid sandbox before connecting live accounts
+- **Review permissions** — ensure `~/.bank-mcp/` is not world-readable (`ls -la ~/.bank-mcp/`)
+- **Scope access** — if your provider supports it, request the minimum scopes needed (read-only account and transaction access)
+
+### Reporting Vulnerabilities
+
+If you discover a security issue, please email the maintainer directly rather than opening a public issue. See [CONTRIBUTING.md](CONTRIBUTING.md) for contact details.
 
 ## Adding a New Provider
 
