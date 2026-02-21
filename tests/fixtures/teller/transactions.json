@@ -1,0 +1,112 @@
+[
+  {
+    "id": "txn_t001",
+    "account_id": "acc_test001",
+    "date": "2026-02-20",
+    "amount": "-42.50",
+    "description": "WHOLE FOODS MKT #10847",
+    "type": "card_payment",
+    "status": "posted",
+    "running_balance": "5247.83",
+    "details": {
+      "processing_status": "complete",
+      "category": "groceries",
+      "counterparty": {
+        "name": "Whole Foods Market",
+        "type": "organization"
+      }
+    },
+    "links": {
+      "self": "https://api.teller.io/accounts/acc_test001/transactions/txn_t001",
+      "account": "https://api.teller.io/accounts/acc_test001"
+    }
+  },
+  {
+    "id": "txn_t002",
+    "account_id": "acc_test001",
+    "date": "2026-02-19",
+    "amount": "3500.00",
+    "description": "TECHCORP INC PAYROLL",
+    "type": "ach",
+    "status": "posted",
+    "running_balance": "5290.33",
+    "details": {
+      "processing_status": "complete",
+      "category": "income",
+      "counterparty": {
+        "name": "TechCorp Inc",
+        "type": "organization"
+      }
+    },
+    "links": {
+      "self": "https://api.teller.io/accounts/acc_test001/transactions/txn_t002",
+      "account": "https://api.teller.io/accounts/acc_test001"
+    }
+  },
+  {
+    "id": "txn_t003",
+    "account_id": "acc_test001",
+    "date": "2026-02-18",
+    "amount": "-15.99",
+    "description": "NETFLIX.COM",
+    "type": "card_payment",
+    "status": "posted",
+    "running_balance": "1790.33",
+    "details": {
+      "processing_status": "complete",
+      "category": "entertainment",
+      "counterparty": {
+        "name": "Netflix",
+        "type": "organization"
+      }
+    },
+    "links": {
+      "self": "https://api.teller.io/accounts/acc_test001/transactions/txn_t003",
+      "account": "https://api.teller.io/accounts/acc_test001"
+    }
+  },
+  {
+    "id": "txn_t004",
+    "account_id": "acc_test001",
+    "date": "2026-02-17",
+    "amount": "-65.00",
+    "description": "SHELL OIL 57443",
+    "type": "card_payment",
+    "status": "posted",
+    "running_balance": "1806.32",
+    "details": {
+      "processing_status": "complete",
+      "category": "fuel",
+      "counterparty": {
+        "name": "Shell",
+        "type": "organization"
+      }
+    },
+    "links": {
+      "self": "https://api.teller.io/accounts/acc_test001/transactions/txn_t004",
+      "account": "https://api.teller.io/accounts/acc_test001"
+    }
+  },
+  {
+    "id": "txn_t005",
+    "account_id": "acc_test001",
+    "date": "2026-02-15",
+    "amount": "-120.00",
+    "description": "TRANSFER TO SAVINGS",
+    "type": "transfer",
+    "status": "posted",
+    "running_balance": "1871.32",
+    "details": {
+      "processing_status": "complete",
+      "category": "general",
+      "counterparty": {
+        "name": null,
+        "type": null
+      }
+    },
+    "links": {
+      "self": "https://api.teller.io/accounts/acc_test001/transactions/txn_t005",
+      "account": "https://api.teller.io/accounts/acc_test001"
+    }
+  }
+]

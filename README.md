@@ -15,6 +15,7 @@ This walks you through connecting your bank. Currently supported:
 | Provider | Coverage | Auth |
 |----------|----------|------|
 | **Enable Banking (PSD2)** | 2000+ European banks | RSA key + session |
+| **Teller (US)** | 7000+ US banks | mTLS certificate + access token |
 | **Mock** | Demo data | None |
 
 ### 2. Add to your MCP client
@@ -146,10 +147,31 @@ npx @bank-mcp/server init
 
 The init wizard validates your credentials by fetching accounts.
 
+## Teller Setup
+
+You need:
+1. A [Teller](https://teller.io) developer account
+2. Your client certificate and private key (downloaded as `.zip` from the Teller dashboard)
+3. An access token from a Teller Connect enrollment
+
+```bash
+# Extract your certificate
+mkdir -p ~/.bank-mcp/keys/teller
+unzip ~/Downloads/teller.zip -d ~/.bank-mcp/keys/teller/
+chmod 600 ~/.bank-mcp/keys/teller/*.pem
+
+# Run setup
+npx @bank-mcp/server init
+# Select: Teller (US Banks)
+# Enter: certificate path, key path, access token
+```
+
+Teller uses **mutual TLS** (mTLS) — your app authenticates at the TLS layer via client certificate, then individual enrollments authenticate via HTTP Basic Auth with the access token. Free tier supports up to 100 live connections.
+
 ## Development
 
 ```bash
-git clone https://github.com/anthropics/bank-mcp.git
+git clone https://github.com/elcukro/bank-mcp.git
 cd bank-mcp
 npm install
 npm test          # Run tests

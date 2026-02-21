@@ -1,0 +1,57 @@
+[
+  {
+    "enrollment_id": "enr_test001",
+    "links": {
+      "balances": "https://api.teller.io/accounts/acc_test001/balances",
+      "self": "https://api.teller.io/accounts/acc_test001",
+      "transactions": "https://api.teller.io/accounts/acc_test001/transactions"
+    },
+    "institution": {
+      "name": "Chase",
+      "id": "chase"
+    },
+    "type": "depository",
+    "name": "Total Checking",
+    "subtype": "checking",
+    "currency": "USD",
+    "id": "acc_test001",
+    "last_four": "4567",
+    "status": "open"
+  },
+  {
+    "enrollment_id": "enr_test001",
+    "links": {
+      "balances": "https://api.teller.io/accounts/acc_test002/balances",
+      "self": "https://api.teller.io/accounts/acc_test002",
+      "transactions": "https://api.teller.io/accounts/acc_test002/transactions"
+    },
+    "institution": {
+      "name": "Chase",
+      "id": "chase"
+    },
+    "type": "depository",
+    "name": "Premier Savings",
+    "subtype": "savings",
+    "currency": "USD",
+    "id": "acc_test002",
+    "last_four": "8901",
+    "status": "open"
+  },
+  {
+    "enrollment_id": "enr_test001",
+    "links": {
+      "self": "https://api.teller.io/accounts/acc_test003"
+    },
+    "institution": {
+      "name": "Chase",
+      "id": "chase"
+    },
+    "type": "credit",
+    "name": "Sapphire Preferred",
+    "subtype": "credit_card",
+    "currency": "USD",
+    "id": "acc_test003",
+    "last_four": "2345",
+    "status": "closed"
+  }
+]

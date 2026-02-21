@@ -1,0 +1,9 @@
+{
+  "account_id": "acc_test001",
+  "ledger": "5247.83",
+  "available": "5197.83",
+  "links": {
+    "self": "https://api.teller.io/accounts/acc_test001/balances",
+    "account": "https://api.teller.io/accounts/acc_test001"
+  }
+}
