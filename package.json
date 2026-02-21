@@ -27,6 +27,14 @@
   ],
   "author": "Luke",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/elcukro/bank-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/elcukro/bank-mcp/issues"
+  },
+  "homepage": "https://github.com/elcukro/bank-mcp#readme",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.25.0",
     "jsonwebtoken": "^9.0.0",

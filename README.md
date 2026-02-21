@@ -33,6 +33,7 @@ Most people manage their finances by logging into bank portals, downloading CSVs
 - [Multiple Connections](#multiple-connections)
 - [Security](#security)
 - [Adding a New Provider](#adding-a-new-provider)
+- [Troubleshooting](#troubleshooting)
 - [Development](#development)
 - [Contributing](#contributing)
 - [License](#license)
@@ -294,33 +295,9 @@ Here's what real interactions look like:
 
 ## Architecture
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│                      MCP Client                              │
-│              (Claude Code / Claude Desktop)                   │
-└──────────────────────┬───────────────────────────────────────┘
-                       │ MCP Protocol (stdio)
-┌──────────────────────▼───────────────────────────────────────┐
-│                    bank-mcp Server                            │
-│                                                              │
-│  ┌─────────┐  ┌──────────────┐  ┌─────────────────────────┐ │
-│  │  Tools   │──│  Cache Layer │──│    Provider Registry     │ │
-│  │         │  │  (in-memory) │  │                         │ │
-│  │ • list_ │  │              │  │  ┌───────────────────┐  │ │
-│  │   accts │  │  TTL-based   │  │  │ Enable Banking    │  │ │
-│  │ • list_ │  │  per-entity  │  │  │ Teller            │  │ │
-│  │   txns  │  │              │  │  │ Plaid             │  │ │
-│  │ • search│  │              │  │  │ Tink              │  │ │
-│  │ • get_  │  │              │  │  │ Mock              │  │ │
-│  │   bal   │  │              │  │  │ (your provider)   │  │ │
-│  │ • spend │  │              │  │  └───────────────────┘  │ │
-│  └─────────┘  └──────────────┘  └─────────────────────────┘ │
-└──────────────────────────────────────────────────────────────┘
-                       │
-           ┌───────────┼───────────┐
-           ▼           ▼           ▼
-     Enable Banking   Plaid     Teller      ...Bank APIs
-```
+<p align="center">
+  <img src="architecture.png" alt="bank-mcp architecture diagram" width="700">
+</p>
 
 ### File Structure
 
@@ -511,6 +488,52 @@ The pluggable architecture makes it straightforward to add support for additiona
 4. **Add config fields** for the init wizard (the schema drives the interactive prompts automatically)
 
 See [`src/providers/enable-banking/`](src/providers/enable-banking/) as a reference implementation. The mock provider at [`src/providers/mock/`](src/providers/mock/) is also useful for understanding the expected data shapes.
+
+## Troubleshooting
+
+**`npx` is running an old version**
+
+npx caches packages. Force the latest:
+
+```bash
+npx @bank-mcp/server@latest
+```
+
+**"Permission denied" reading config**
+
+The config file should be readable by your user:
+
+```bash
+ls -la ~/.bank-mcp/config.json
+# Should show: -rw------- (600)
+# Fix: chmod 600 ~/.bank-mcp/config.json
+```
+
+**"Session expired" (Enable Banking)**
+
+PSD2 sessions expire after 90 days. Re-run the init wizard:
+
+```bash
+npx @bank-mcp/server init
+# Select your existing Enable Banking connection to update the session
+```
+
+**Tools not showing up in your MCP client**
+
+1. Verify the server starts: `npx @bank-mcp/server --mock` (should output MCP protocol on stdout)
+2. Check your config file path matches your client's expected location
+3. Restart your MCP client after adding the config
+4. Check your client's MCP logs for connection errors
+
+**"ETLS" or certificate errors (Teller)**
+
+Teller requires mTLS. Verify your certificate files:
+
+```bash
+ls -la ~/.bank-mcp/keys/teller/
+# Should contain: certificate.pem, private_key.pem
+# Both should be chmod 600
+```
 
 ## Development
 
