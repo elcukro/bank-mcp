@@ -9,24 +9,31 @@ vi.mock("../../../../src/connect/browser.js", () => ({
   openBrowser: vi.fn(),
 }));
 
+vi.mock("@clack/prompts", () => {
+  const answers: unknown[] = [];
+  let idx = 0;
+  return {
+    intro: vi.fn(),
+    outro: vi.fn(),
+    log: { step: vi.fn(), info: vi.fn(), success: vi.fn() },
+    note: vi.fn(),
+    cancel: vi.fn(),
+    isCancel: vi.fn(() => false),
+    confirm: vi.fn(() => Promise.resolve(answers[idx++])),
+    text: vi.fn(() => Promise.resolve(answers[idx++])),
+    password: vi.fn(() => Promise.resolve(answers[idx++])),
+    select: vi.fn(() => Promise.resolve(answers[idx++])),
+    spinner: vi.fn(() => ({ start: vi.fn(), stop: vi.fn() })),
+    __setAnswers: (a: unknown[]) => { answers.length = 0; answers.push(...a); idx = 0; },
+  };
+});
+
 import { plaidInitFlow } from "../../../../src/init/flows/plaid.js";
 import { httpFetch } from "../../../../src/utils/http.js";
+import * as p from "@clack/prompts";
 
 const mockedFetch = vi.mocked(httpFetch);
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function createMockRL(answers: string[]) {
-  let answerIdx = 0;
-  return {
-    question: vi.fn().mockImplementation(() => {
-      return Promise.resolve(answers[answerIdx++] || "");
-    }),
-    close: vi.fn(),
-  } as unknown as import("node:readline/promises").Interface;
-}
+const setAnswers = (p as unknown as { __setAnswers: (a: unknown[]) => void }).__setAnswers;
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -65,13 +72,13 @@ describe("plaidInitFlow", () => {
   });
 
   it("completes sandbox flow with auto token creation", async () => {
-    const rl = createMockRL([
-      "",                // askWithBrowserOpen: press Enter (skip opening)
-      "test_client_id",  // client_id
-      "test_secret",     // secret
-      "1",               // environment: sandbox
-      "1",               // institution: First Platypus Bank
-      "",                // label: default
+    setAnswers([
+      false,              // askWithBrowserOpen: don't open browser
+      "test_client_id",   // p.text: client_id
+      "test_secret",      // p.password: secret
+      "sandbox",          // p.select: environment
+      "ins_109508",       // p.select: institution (First Platypus Bank)
+      "Plaid (sandbox)",  // p.text: label (default)
     ]);
 
     mockedFetch
@@ -79,7 +86,7 @@ describe("plaidInitFlow", () => {
       .mockResolvedValueOnce(exchangeResp)             // /item/public_token/exchange
       .mockResolvedValueOnce(accountsResp);            // /accounts/get
 
-    const result = await plaidInitFlow(rl);
+    const result = await plaidInitFlow();
 
     expect(result.provider).toBe("plaid");
     expect(result.label).toBe("Plaid (sandbox)");
@@ -124,18 +131,18 @@ describe("plaidInitFlow", () => {
   });
 
   it("accepts existing access token for development", async () => {
-    const rl = createMockRL([
-      "",                           // askWithBrowserOpen: skip
-      "dev_client_id",              // client_id
-      "dev_secret",                 // secret
-      "2",                          // environment: development
-      "access-dev-token-12345",     // paste access token
-      "My Dev Bank",                // label
+    setAnswers([
+      false,                      // askWithBrowserOpen: don't open
+      "dev_client_id",            // p.text: client_id
+      "dev_secret",               // p.password: secret
+      "development",              // p.select: environment
+      "access-dev-token-12345",   // p.text: access token
+      "My Dev Bank",              // p.text: label
     ]);
 
     mockedFetch.mockResolvedValueOnce(accountsResp); // /accounts/get
 
-    const result = await plaidInitFlow(rl);
+    const result = await plaidInitFlow();
 
     expect(result.provider).toBe("plaid");
     expect(result.label).toBe("My Dev Bank");
@@ -154,32 +161,32 @@ describe("plaidInitFlow", () => {
   });
 
   it("throws on empty client ID", async () => {
-    const rl = createMockRL([
-      "",  // askWithBrowserOpen: skip
-      "",  // empty client_id
+    setAnswers([
+      false,  // askWithBrowserOpen: don't open
+      "",     // empty client_id
       "some_secret",
     ]);
 
-    await expect(plaidInitFlow(rl)).rejects.toThrow("client_id is required");
+    await expect(plaidInitFlow()).rejects.toThrow("client_id is required");
   });
 
   it("throws on empty secret", async () => {
-    const rl = createMockRL([
-      "",                // askWithBrowserOpen: skip
+    setAnswers([
+      false,            // askWithBrowserOpen: don't open
       "valid_client_id", // client_id
-      "",                // empty secret
+      "",               // empty secret
     ]);
 
-    await expect(plaidInitFlow(rl)).rejects.toThrow("secret is required");
+    await expect(plaidInitFlow()).rejects.toThrow("secret is required");
   });
 
   it("reuses existing credentials when user confirms", async () => {
-    const rl = createMockRL([
-      "",   // askWithBrowserOpen: skip
-      "",   // reuse credentials: Y (default)
-      "1",  // environment: sandbox
-      "1",  // institution: First Platypus Bank
-      "",   // label: default
+    setAnswers([
+      false,              // askWithBrowserOpen: don't open
+      true,               // p.confirm: reuse credentials
+      "sandbox",          // p.select: environment
+      "ins_109508",       // p.select: institution
+      "Plaid (sandbox)",  // p.text: label
     ]);
 
     const existingConfig = {
@@ -192,7 +199,7 @@ describe("plaidInitFlow", () => {
       .mockResolvedValueOnce(exchangeResp)
       .mockResolvedValueOnce(accountsResp);
 
-    const result = await plaidInitFlow(rl, existingConfig);
+    const result = await plaidInitFlow(existingConfig);
 
     expect(result.config.clientId).toBe("existing_client_id");
     expect(result.config.secret).toBe("existing_secret");

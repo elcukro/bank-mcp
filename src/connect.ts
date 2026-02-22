@@ -3,9 +3,10 @@
  *
  * Kept for backward compatibility. All guided setup is handled by `init`.
  */
+import * as p from "@clack/prompts";
 import { runInit } from "./init.js";
 
 export async function runConnect(): Promise<void> {
-  console.log("  Note: 'connect' is now part of 'init'. Launching guided setup...\n");
+  p.log.warn("Note: 'connect' is now part of 'init'. Launching guided setup...");
   await runInit();
 }

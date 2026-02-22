@@ -63,33 +63,43 @@ HSBC · BNP Paribas · Deutsche Bank · ING · Crédit Agricole · Santander · 
 
 ## Quick Start
 
-### 1. Configure a bank connection
+### 1. Run the setup wizard
 
 ```bash
-npx @bank-mcp/server init       # Credential-based setup (all providers)
-npx @bank-mcp/server connect    # Browser-based OAuth (Enable Banking, Tink)
+npx @bank-mcp/server init
 ```
 
-`init` walks you through entering credentials manually. `connect` automates the browser-based OAuth flow — it opens your bank's login page, handles the callback, and saves the session automatically.
+The interactive wizard walks you through everything — provider selection, credentials, bank authorization, and account verification — all with a polished terminal UI:
+
+```
+┌  bank-mcp — Connect your bank account
+│
+◇  Choose your banking provider
+│  Plaid / Teller / Tink / Enable Banking
+│
+◇  Environment
+│  Sandbox / Development / Production
+│
+◇  Found 3 account(s) ─────────────────────────╮
+│    ****1591 (Bank of America Platinum Card)   │
+│    ****3588 (Bank of America My Checking)     │
+│    ****2450 (Bank of America Essential Savings)│
+├───────────────────────────────────────────────╯
+│
+└  Setup complete!
+```
 
 ### 2. Add to your MCP client
 
-Add bank-mcp to your AI tool's MCP configuration. Here's the most common setup:
+At the end of setup, the wizard asks which MCP client you use and shows the exact configuration:
 
-**Claude Code** (`.mcp.json` in your project root or `~/.claude/.mcp.json` globally):
+- **Claude Code** — one command: `claude mcp add bank -- npx @bank-mcp/server`
+- **Cursor** — add to `.cursor/mcp.json`
+- **Windsurf** — add to `~/.codeium/windsurf/mcp_config.json`
+- **Gemini CLI** — add to `~/.gemini/settings.json`
+- **Codex CLI** — add to `~/.codex/config.json`
 
-```json
-{
-  "mcpServers": {
-    "bank": {
-      "command": "npx",
-      "args": ["@bank-mcp/server"]
-    }
-  }
-}
-```
-
-> **Using a different tool?** See [Client Setup](#client-setup) for Claude Desktop, Cursor, VS Code, Windsurf, Codex CLI, Gemini CLI, and Zed.
+> **Using a different tool?** See [Client Setup](#client-setup) for all supported clients including Claude Desktop, VS Code, and Zed.
 
 ### 3. Try it
 

@@ -11,7 +11,7 @@
  *   8. GET /data/v2/accounts → account details
  */
 
-import type { Interface as ReadlineInterface } from "node:readline/promises";
+import * as p from "@clack/prompts";
 import { httpFetch } from "../../utils/http.js";
 import { openBrowser } from "../browser.js";
 
@@ -43,41 +43,70 @@ export interface TinkConnectResult {
   };
 }
 
+function handleCancel(value: unknown): void {
+  if (p.isCancel(value)) {
+    p.cancel("Setup cancelled.");
+    process.exit(0);
+  }
+}
+
 /**
  * Run the interactive Tink connect flow.
  */
 export async function tinkConnectFlow(
-  rl: ReadlineInterface,
   existingConfig?: Record<string, unknown>,
 ): Promise<TinkConnectResult> {
   // ── Step 1: Credentials ─────────────────────────────────────
-  console.log("  First, log in to your Tink Console at https://console.tink.com");
-  console.log("  You'll need your Client ID and Client Secret from your app.\n");
+  p.log.step("Tink Setup");
+  p.log.info(
+    "You'll need your Client ID and Client Secret from the Tink Console.\n" +
+    "Sign up at https://console.tink.com if you don't have an account.",
+  );
 
-  const openDash = await rl.question("? Press 'o' to open Tink Console, or Enter if ready: ");
-  if (openDash.toLowerCase() === "o") {
+  const openDash = await p.confirm({
+    message: "Open Tink Console in your browser?",
+    initialValue: false,
+  });
+  handleCancel(openDash);
+
+  if (openDash) {
     openBrowser("https://console.tink.com/");
-    console.log("\n  Opened https://console.tink.com/");
-    await rl.question("? Press Enter once you're logged in...");
+    p.log.info("Opened https://console.tink.com/");
+
+    const ready = await p.confirm({ message: "Ready to continue?", initialValue: true });
+    handleCancel(ready);
   }
 
   let clientId: string;
   let clientSecret: string;
 
   if (existingConfig?.clientId && existingConfig?.clientSecret) {
-    const reuse = await rl.question(
-      `\n  Found existing credentials (Client ID: ${String(existingConfig.clientId).slice(0, 8)}...)\n? Reuse them? (Y/n): `,
-    );
-    if (reuse.toLowerCase() !== "n") {
+    const reuse = await p.confirm({
+      message: `Reuse existing credentials (Client ID: ${String(existingConfig.clientId).slice(0, 8)}...)?`,
+      initialValue: true,
+    });
+    handleCancel(reuse);
+
+    if (reuse) {
       clientId = existingConfig.clientId as string;
       clientSecret = existingConfig.clientSecret as string;
     } else {
-      clientSecret = await rl.question("\n? Tink Client Secret: ");
-      clientId = await rl.question("? Tink Client ID: ");
+      const sec = await p.password({ message: "Tink Client Secret" });
+      handleCancel(sec);
+      clientSecret = sec as string;
+
+      const id = await p.text({ message: "Tink Client ID" });
+      handleCancel(id);
+      clientId = id as string;
     }
   } else {
-    clientSecret = await rl.question("\n? Tink Client Secret: ");
-    clientId = await rl.question("? Tink Client ID: ");
+    const sec = await p.password({ message: "Tink Client Secret" });
+    handleCancel(sec);
+    clientSecret = sec as string;
+
+    const id = await p.text({ message: "Tink Client ID" });
+    handleCancel(id);
+    clientId = id as string;
   }
 
   if (!clientId || !clientSecret) {
@@ -85,43 +114,48 @@ export async function tinkConnectFlow(
   }
 
   // ── Step 2: Verify credentials ──────────────────────────────
-  console.log("\n  Authenticating with Tink...");
+  const authSpinner = p.spinner();
+  authSpinner.start("Authenticating with Tink...");
   await getClientToken(clientId, clientSecret, "authorization:grant");
-  console.log("  Client authenticated.\n");
+  authSpinner.stop("Client authenticated.");
 
   // ── Step 3: Market selection ────────────────────────────────
-  console.log("  Select your bank's market:");
-  POPULAR_MARKETS.forEach((m, i) => {
-    console.log(`    ${String(i + 1).padStart(2)}. ${m.name} (${m.code})`);
-  });
-  console.log(`    ${POPULAR_MARKETS.length + 1}. Other (enter code)`);
+  const marketOptions = [
+    ...POPULAR_MARKETS.map((m) => ({
+      value: m.code,
+      label: `${m.name} (${m.code})`,
+    })),
+    { value: "__other__", label: "Other (enter code)" },
+  ];
 
-  const marketInput = await rl.question("\n? Market: ");
+  const marketChoice = await p.select({
+    message: "Select your bank's market",
+    options: marketOptions,
+  });
+  handleCancel(marketChoice);
+
   let market: string;
-  const idx = parseInt(marketInput, 10);
-  if (idx >= 1 && idx <= POPULAR_MARKETS.length) {
-    market = POPULAR_MARKETS[idx - 1].code;
-  } else if (idx === POPULAR_MARKETS.length + 1) {
-    market = (await rl.question("? Market code (e.g. AT, CZ): ")).toUpperCase();
+  if (marketChoice === "__other__") {
+    const custom = await p.text({ message: "Market code", placeholder: "e.g. AT, CZ" });
+    handleCancel(custom);
+    market = (custom as string).toUpperCase();
   } else {
-    market = marketInput.toUpperCase();
+    market = marketChoice as string;
   }
 
   if (!market || market.length !== 2) {
     throw new Error("Invalid market code. Use a 2-letter code (e.g. PL, SE).");
   }
 
-  return transactionsFlow(rl, clientId, clientSecret, market, existingConfig);
+  return transactionsFlow(clientId, clientSecret, market);
 }
 
 // ── Transactions flow (one-time access, no user creation) ─────
 
 async function transactionsFlow(
-  rl: ReadlineInterface,
   clientId: string,
   clientSecret: string,
   market: string,
-  _existingConfig?: Record<string, unknown>,
 ): Promise<TinkConnectResult> {
   // Build Tink Link URL — direct, no delegate auth needed
   const tinkLinkUrl = [
@@ -132,24 +166,29 @@ async function transactionsFlow(
     `&locale=en_US`,
   ].join("");
 
-  console.log("\n  Opening Tink Link in your browser...\n");
-  console.log(`  URL: ${tinkLinkUrl}\n`);
+  p.log.info(`Opening Tink Link in your browser...\nURL: ${tinkLinkUrl}`);
   openBrowser(tinkLinkUrl);
 
-  console.log("  Connect to a bank in the Tink Link window.");
-  console.log("  For sandbox, pick 'Demo Bank' and use test credentials:");
-  console.log("    Username: u11577912  Password: uvj476\n");
-  console.log("  After connecting, you'll be redirected to a URL like:");
-  console.log("    https://console.tink.com/callback?code=...\n");
+  p.note(
+    "Connect to a bank in the Tink Link window.\n" +
+    "For sandbox, pick 'Demo Bank' and use test credentials:\n" +
+    "  Username: u11577912  Password: uvj476\n\n" +
+    "After connecting, you'll be redirected to a URL like:\n" +
+    "  https://console.tink.com/callback?code=...",
+    "Tink Link",
+  );
 
-  const redirectUrl = await rl.question("? Paste the redirect URL: ");
+  const redirectUrl = await p.text({ message: "Paste the redirect URL" });
+  handleCancel(redirectUrl);
 
   // Extract code from redirect URL
-  const code = extractCode(redirectUrl);
-  console.log(`\n  Authorization code: ${code.slice(0, 16)}...`);
+  const code = extractCode(redirectUrl as string);
+  p.log.info(`Authorization code: ${code.slice(0, 16)}...`);
 
   // Exchange code for access token
-  console.log("  Exchanging code for access token...");
+  const tokenSpinner = p.spinner();
+  tokenSpinner.start("Exchanging code for access token...");
+
   const tokenBody = new URLSearchParams({
     grant_type: "authorization_code",
     client_id: clientId,
@@ -163,10 +202,12 @@ async function transactionsFlow(
     body: tokenBody,
   })) as { access_token: string; expires_in: number };
 
-  console.log(`  Access token obtained (expires in ${Math.round((tokenResult.expires_in || 7200) / 60)} minutes)`);
+  tokenSpinner.stop(`Access token obtained (expires in ${Math.round((tokenResult.expires_in || 7200) / 60)} minutes)`);
 
   // Fetch accounts
-  console.log("  Fetching account details...");
+  const accSpinner = p.spinner();
+  accSpinner.start("Fetching account details...");
+
   const accountsResult = (await httpFetch(`${TINK_API}/data/v2/accounts`, {
     headers: { Authorization: `Bearer ${tokenResult.access_token}` },
   })) as {
@@ -186,17 +227,21 @@ async function transactionsFlow(
   }));
 
   if (accounts.length > 0) {
-    console.log(`  Found ${accounts.length} account(s):`);
+    accSpinner.stop(`Found ${accounts.length} account(s).`);
     for (const acc of accounts) {
-      console.log(`    - ${acc.iban} (${acc.name}, ${acc.currency})`);
+      p.log.info(`  ${acc.iban} (${acc.name}, ${acc.currency})`);
     }
   } else {
-    console.log("  No accounts found yet — they may take a moment to sync.");
+    accSpinner.stop("No accounts found yet — they may take a moment to sync.");
   }
 
   const defaultLabel = `Tink (${market})`;
-  const label =
-    (await rl.question(`\n? Connection label [${defaultLabel}]: `)) || defaultLabel;
+  const label = await p.text({
+    message: "Connection label",
+    placeholder: defaultLabel,
+    defaultValue: defaultLabel,
+  });
+  handleCancel(label);
 
   const tokenExpiresAt = new Date(
     Date.now() + (tokenResult.expires_in || 7200) * 1000,
@@ -204,7 +249,7 @@ async function transactionsFlow(
 
   return {
     provider: "tink",
-    label,
+    label: label as string,
     config: {
       clientId,
       clientSecret,
@@ -274,4 +319,3 @@ function extractCode(urlStr: string): string {
     "No authorization code found in the URL. Make sure you copied the complete redirect URL.",
   );
 }
-

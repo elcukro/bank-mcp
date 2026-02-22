@@ -16,7 +16,7 @@
  */
 
 import { randomBytes } from "node:crypto";
-import type { Interface as ReadlineInterface } from "node:readline/promises";
+import * as p from "@clack/prompts";
 import { generateJwt } from "../../providers/enable-banking/auth.js";
 import { httpFetch } from "../../utils/http.js";
 import { openBrowser } from "../browser.js";
@@ -57,26 +57,40 @@ export interface EnableBankingConnectResult {
   };
 }
 
+function handleCancel(value: unknown): void {
+  if (p.isCancel(value)) {
+    p.cancel("Setup cancelled.");
+    process.exit(0);
+  }
+}
+
 /**
  * Run the interactive Enable Banking connect flow.
  *
- * @param rl - readline interface (passed from parent orchestrator)
  * @param existingConfig - existing EB config to reuse credentials from
  */
 export async function enableBankingConnectFlow(
-  rl: ReadlineInterface,
   existingConfig?: Record<string, unknown>,
 ): Promise<EnableBankingConnectResult> {
   // ── Step 1: Log in to Enable Banking ──────────────────────────
-  console.log("  First, log in to your Enable Banking account.");
-  console.log("  You'll need your App ID and private key from the dashboard.\n");
-  console.log("  Don't have an account yet? Sign up at https://enablebanking.com\n");
+  p.log.step("Enable Banking Setup");
+  p.log.info(
+    "You'll need your App ID and private key from the dashboard.\n" +
+    "Don't have an account yet? Sign up at https://enablebanking.com",
+  );
 
-  const openDash = await rl.question("? Press 'o' to open enablebanking.com, or Enter if already logged in: ");
-  if (openDash.toLowerCase() === "o") {
+  const openDash = await p.confirm({
+    message: "Open enablebanking.com in your browser?",
+    initialValue: false,
+  });
+  handleCancel(openDash);
+
+  if (openDash) {
     openBrowser("https://enablebanking.com/cp/applications/");
-    console.log("\n  Opened https://enablebanking.com/cp/applications/");
-    await rl.question("? Press Enter once you're logged in...");
+    p.log.info("Opened https://enablebanking.com/cp/applications/");
+
+    const ready = await p.confirm({ message: "Ready to continue?", initialValue: true });
+    handleCancel(ready);
   }
 
   // ── Step 2: Credentials ───────────────────────────────────────
@@ -84,60 +98,94 @@ export async function enableBankingConnectFlow(
   let privateKeyPath: string;
 
   if (existingConfig?.appId && existingConfig?.privateKeyPath) {
-    const reuse = await rl.question(
-      `\n  Found existing credentials (App ID: ${String(existingConfig.appId).slice(0, 8)}...)\n? Reuse them? (Y/n): `,
-    );
-    if (reuse.toLowerCase() !== "n") {
+    const reuse = await p.confirm({
+      message: `Reuse existing credentials (App ID: ${String(existingConfig.appId).slice(0, 8)}...)?`,
+      initialValue: true,
+    });
+    handleCancel(reuse);
+
+    if (reuse) {
       appId = existingConfig.appId as string;
       privateKeyPath = existingConfig.privateKeyPath as string;
     } else {
-      console.log(`\n  Copy the App ID from your application in the dashboard.`);
-      appId = await rl.question("? Enable Banking App ID: ");
-      console.log(`  The private key (.pem) was downloaded when you created the app.`);
-      privateKeyPath = await rl.question("? Path to RSA private key (.pem): ");
+      const id = await p.text({ message: "Enable Banking App ID", placeholder: "from the dashboard" });
+      handleCancel(id);
+      appId = id as string;
+
+      const keyPath = await p.text({ message: "Path to RSA private key (.pem)", placeholder: "downloaded when app was created" });
+      handleCancel(keyPath);
+      privateKeyPath = keyPath as string;
     }
   } else {
-    console.log(`\n  Copy the App ID from your application in the dashboard.`);
-    appId = await rl.question("? Enable Banking App ID: ");
-    console.log(`  The private key (.pem) was downloaded when you created the app.`);
-    privateKeyPath = await rl.question("? Path to RSA private key (.pem): ");
+    const id = await p.text({ message: "Enable Banking App ID", placeholder: "from the dashboard" });
+    handleCancel(id);
+    appId = id as string;
+
+    const keyPath = await p.text({ message: "Path to RSA private key (.pem)", placeholder: "downloaded when app was created" });
+    handleCancel(keyPath);
+    privateKeyPath = keyPath as string;
   }
 
   if (!appId || !privateKeyPath) {
     throw new Error("App ID and private key path are required.");
   }
 
-  // Verify the key is readable by attempting JWT generation
-  try {
-    generateJwt(appId, privateKeyPath);
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    throw new Error(`Cannot read private key: ${msg}`);
+  // Verify the key is readable — retry on failure
+  for (;;) {
+    try {
+      generateJwt(appId, privateKeyPath);
+      break;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      p.log.warn(`Cannot read private key: ${msg}`);
+
+      const retry = await p.confirm({
+        message: "Try a different path?",
+        initialValue: true,
+      });
+      handleCancel(retry);
+
+      if (!retry) {
+        throw new Error(`Cannot read private key: ${msg}`);
+      }
+
+      const newPath = await p.text({ message: "Path to RSA private key (.pem)" });
+      handleCancel(newPath);
+      privateKeyPath = (newPath as string).trim();
+
+      if (!privateKeyPath) {
+        throw new Error("Private key path is required.");
+      }
+    }
   }
 
-  console.log("\n  Credentials verified.\n");
+  p.log.success("Credentials verified.");
 
   // ── Step 3: Redirect URI setup (one-time) ─────────────────────
-  await ensureRedirectUri(rl, appId);
+  await ensureRedirectUri(appId);
 
   // ── Step 4: Country selection ─────────────────────────────────
-  console.log("\n  Select your bank's country:");
-  POPULAR_COUNTRIES.forEach((c, i) => {
-    console.log(`    ${String(i + 1).padStart(2)}. ${c.name} (${c.code})`);
+  const countryOptions = [
+    ...POPULAR_COUNTRIES.map((c) => ({
+      value: c.code,
+      label: `${c.name} (${c.code})`,
+    })),
+    { value: "__other__", label: "Other (enter code)" },
+  ];
+
+  const countryChoice = await p.select({
+    message: "Select your bank's country",
+    options: countryOptions,
   });
-  console.log(`    ${POPULAR_COUNTRIES.length + 1}. Other (enter code)`);
+  handleCancel(countryChoice);
 
-  const countryInput = await rl.question("\n? Country: ");
   let countryCode: string;
-
-  const idx = parseInt(countryInput, 10);
-  if (idx >= 1 && idx <= POPULAR_COUNTRIES.length) {
-    countryCode = POPULAR_COUNTRIES[idx - 1].code;
-  } else if (idx === POPULAR_COUNTRIES.length + 1) {
-    countryCode = (await rl.question("? Country code (e.g. AT, CZ): ")).toUpperCase();
+  if (countryChoice === "__other__") {
+    const custom = await p.text({ message: "Country code", placeholder: "e.g. AT, CZ" });
+    handleCancel(custom);
+    countryCode = (custom as string).toUpperCase();
   } else {
-    // Allow direct country code input
-    countryCode = countryInput.toUpperCase();
+    countryCode = countryChoice as string;
   }
 
   if (!countryCode || countryCode.length !== 2) {
@@ -145,7 +193,9 @@ export async function enableBankingConnectFlow(
   }
 
   // ── Step 5: Fetch banks (ASPSPs) ──────────────────────────────
-  console.log(`\n  Fetching banks for ${countryCode}...`);
+  const bankSpinner = p.spinner();
+  bankSpinner.start(`Fetching banks for ${countryCode}...`);
+
   const token = generateJwt(appId, privateKeyPath);
   const aspsps = (await httpFetch(`${API_BASE}/aspsps?country=${countryCode}`, {
     headers: authHeaders(token),
@@ -153,38 +203,47 @@ export async function enableBankingConnectFlow(
 
   const banks = aspsps.aspsps;
   if (!banks || banks.length === 0) {
+    bankSpinner.stop("No banks found.");
     throw new Error(`No banks found for country ${countryCode}.`);
   }
 
-  console.log(`  Found ${banks.length} bank(s).`);
+  bankSpinner.stop(`Found ${banks.length} bank(s).`);
 
   // ── Step 6: Bank selection ────────────────────────────────────
   let selectedBank: ASPSP;
 
   if (banks.length > 20) {
     // Search filter for long lists
-    const search = await rl.question("\n? Search by name: ");
+    const search = await p.text({ message: "Search by bank name" });
+    handleCancel(search);
+
     const filtered = banks.filter((b) =>
-      b.name.toLowerCase().includes(search.toLowerCase()),
+      b.name.toLowerCase().includes((search as string).toLowerCase()),
     );
 
     if (filtered.length === 0) {
-      throw new Error(`No banks matching "${search}".`);
+      throw new Error(`No banks matching "${search as string}".`);
     }
 
-    filtered.forEach((b, i) => {
-      console.log(`    ${i + 1}. ${b.name}`);
+    const bankChoice = await p.select({
+      message: "Select bank",
+      options: filtered.map((b, i) => ({
+        value: i,
+        label: b.name,
+      })),
     });
-
-    const bankIdx = parseInt(await rl.question("\n? Select bank: "), 10) - 1;
-    selectedBank = filtered[bankIdx];
+    handleCancel(bankChoice);
+    selectedBank = filtered[bankChoice as number];
   } else {
-    banks.forEach((b, i) => {
-      console.log(`    ${i + 1}. ${b.name}`);
+    const bankChoice = await p.select({
+      message: "Select bank",
+      options: banks.map((b, i) => ({
+        value: i,
+        label: b.name,
+      })),
     });
-
-    const bankIdx = parseInt(await rl.question("\n? Select bank: "), 10) - 1;
-    selectedBank = banks[bankIdx];
+    handleCancel(bankChoice);
+    selectedBank = banks[bankChoice as number];
   }
 
   if (!selectedBank) {
@@ -196,6 +255,9 @@ export async function enableBankingConnectFlow(
   const validUntil = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000)
     .toISOString()
     .slice(0, 19) + "Z";
+
+  const authSpinner = p.spinner();
+  authSpinner.start("Requesting bank authorization...");
 
   const authToken = generateJwt(appId, privateKeyPath);
   const authResponse = (await httpFetch(`${API_BASE}/auth`, {
@@ -216,23 +278,32 @@ export async function enableBankingConnectFlow(
   })) as { url: string };
 
   if (!authResponse.url) {
+    authSpinner.stop("Failed");
     throw new Error("Enable Banking API did not return an authorization URL.");
   }
 
+  authSpinner.stop("Authorization URL received.");
+
   // ── Step 8: Open browser → user logs in at bank ───────────────
-  console.log(`\n  Opening your bank's login page...`);
-  console.log(`  URL: ${authResponse.url}\n`);
+  p.log.info(`Opening your bank's login page...\nURL: ${authResponse.url}`);
   openBrowser(authResponse.url);
 
-  console.log("  After logging in, your browser will redirect to a page");
-  console.log("  that won't load — that's expected!");
-  console.log("");
-  console.log("  Copy the full URL from your browser's address bar and paste it below.");
-  console.log("  It will look like: https://localhost:13579/callback?code=...&state=...\n");
+  p.note(
+    "After logging in, your browser will redirect to a page\n" +
+    "that won't load — that's expected!\n\n" +
+    "Copy the full URL from your browser's address bar and paste it below.\n" +
+    "It will look like: https://localhost:13579/callback?code=...&state=...",
+    "Next step",
+  );
 
   // ── Step 9: User pastes redirect URL → extract code ───────────
-  const redirectInput = await rl.question("? Paste the redirect URL: ");
-  const code = extractCodeFromUrl(redirectInput, state);
+  const redirectInput = await p.text({ message: "Paste the redirect URL" });
+  handleCancel(redirectInput);
+
+  const code = extractCodeFromUrl(redirectInput as string, state);
+
+  const sessionSpinner = p.spinner();
+  sessionSpinner.start("Creating session...");
 
   const sessionToken = generateJwt(appId, privateKeyPath);
   const sessionResponse = (await httpFetch(`${API_BASE}/sessions`, {
@@ -243,17 +314,20 @@ export async function enableBankingConnectFlow(
 
   const sessionId = sessionResponse.session_id;
   if (!sessionId) {
+    sessionSpinner.stop("Failed");
     throw new Error("Failed to create session — no session_id returned.");
   }
 
-  console.log(`\n  Authorization received!`);
+  sessionSpinner.stop("Authorization received!");
 
   // ── Step 10: Fetch accounts (with retry for rate limits) ──────
   let accounts: EnableBankingConnectResult["config"]["accounts"] = [];
   let actualValidUntil = validUntil;
 
+  const accSpinner = p.spinner();
   try {
-    console.log("  Fetching account details...");
+    accSpinner.start("Fetching account details...");
+
     const sessionDetailToken = generateJwt(appId, privateKeyPath);
     const sessionDetails = (await fetchWithRetry(
       `${API_BASE}/sessions/${sessionId}`,
@@ -286,25 +360,35 @@ export async function enableBankingConnectFlow(
       });
     }
 
-    console.log(`  Session created (valid until ${actualValidUntil.slice(0, 10)})`);
-    console.log(`  Found ${accounts.length} account(s):`);
+    accSpinner.stop(`Found ${accounts.length} account(s) (valid until ${actualValidUntil.slice(0, 10)})`);
+
     for (const acc of accounts) {
-      console.log(`    - ${acc.iban} (${acc.name}, ${acc.currency})`);
+      p.log.info(`  ${acc.iban} (${acc.name}, ${acc.currency})`);
     }
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.log(`\n  Warning: Could not fetch account details (${msg})`);
-    console.log("  The session is still valid — accounts will be fetched on first use.\n");
+    accSpinner.stop("Could not fetch account details.");
+
+    let reason = err instanceof Error ? err.message : String(err);
+    // Extract clean message from HTTP JSON errors
+    const jsonMatch = reason.match(/\{.*"message"\s*:\s*"([^"]+)"/);
+    if (jsonMatch) {
+      reason = jsonMatch[1];
+    }
+
+    p.log.warn(`${reason}\nThe session is still valid — accounts will be fetched on first use.`);
   }
 
   // ── Label ─────────────────────────────────────────────────────
-  const label =
-    (await rl.question(`\n? Connection label [${selectedBank.name}]: `)) ||
-    selectedBank.name;
+  const label = await p.text({
+    message: "Connection label",
+    placeholder: selectedBank.name,
+    defaultValue: selectedBank.name,
+  });
+  handleCancel(label);
 
   return {
     provider: "enable-banking",
-    label,
+    label: label as string,
     config: {
       appId,
       privateKeyPath,
@@ -354,37 +438,37 @@ export function extractCodeFromUrl(urlStr: string, expectedState: string): strin
  * Guide the user through registering the redirect URI in Enable Banking.
  * This is a one-time setup — returning users can skip it.
  */
-async function ensureRedirectUri(
-  rl: ReadlineInterface,
-  appId: string,
-): Promise<void> {
+async function ensureRedirectUri(appId: string): Promise<void> {
   const dashboardUrl = `https://enablebanking.com/cp/applications/${appId}/edit`;
 
-  console.log("  ── Redirect URI (one-time setup) ──────────────────────");
-  console.log("");
-  console.log("  bank-mcp needs a redirect URI registered in your");
-  console.log("  Enable Banking app so the bank can send you back here.");
-  console.log("");
-  console.log("  Add this URI to your app's allowed redirect URIs:");
-  console.log("");
-  console.log(`    ${REDIRECT_URL}`);
-  console.log("");
+  p.note(
+    "bank-mcp needs a redirect URI registered in your\n" +
+    "Enable Banking app so the bank can send you back here.\n\n" +
+    "Add this URI to your app's allowed redirect URIs:\n\n" +
+    `  ${REDIRECT_URL}`,
+    "Redirect URI (one-time setup)",
+  );
 
-  const skip = await rl.question("? Already done? Press Enter to skip, or 'o' to open dashboard: ");
+  const action = await p.confirm({
+    message: "Already done? (No = open dashboard to add it now)",
+    initialValue: true,
+  });
+  handleCancel(action);
 
-  if (skip.toLowerCase() === "o") {
-    console.log(`\n  Opening: ${dashboardUrl}`);
+  if (!action) {
+    p.log.info(`Opening: ${dashboardUrl}`);
     openBrowser(dashboardUrl);
-    console.log("");
-    console.log("  Steps:");
-    console.log("    1. Find your app in the dashboard");
-    console.log(`    2. Add redirect URI:  ${REDIRECT_URL}`);
-    console.log("    3. Save changes");
-    console.log("");
-    await rl.question("? Press Enter when done...");
-  }
 
-  console.log("");
+    p.log.info(
+      "Steps:\n" +
+      "  1. Find your app in the dashboard\n" +
+      `  2. Add redirect URI:  ${REDIRECT_URL}\n` +
+      "  3. Save changes",
+    );
+
+    const done = await p.confirm({ message: "Done?", initialValue: true });
+    handleCancel(done);
+  }
 }
 
 function authHeaders(token: string): Record<string, string> {
@@ -417,7 +501,7 @@ async function fetchWithRetry(
       }
 
       const delaySec = delays[attempt] / 1000;
-      console.log(`  Rate limited by bank — waiting ${delaySec}s before retry...`);
+      p.log.warn(`Rate limited by bank — waiting ${delaySec}s before retry...`);
       await new Promise((r) => setTimeout(r, delays[attempt]));
     }
   }

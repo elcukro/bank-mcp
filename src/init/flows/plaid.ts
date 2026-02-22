@@ -11,10 +11,10 @@
  *  7. Connection label
  */
 
-import type { Interface as ReadlineInterface } from "node:readline/promises";
+import * as p from "@clack/prompts";
 import type { BankAccount } from "../../types.js";
 import { httpFetch } from "../../utils/http.js";
-import { printSection, printAccounts, askWithBrowserOpen } from "../ui.js";
+import { printSection, printAccounts, askWithBrowserOpen, handleCancel } from "../ui.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -80,36 +80,48 @@ async function plaidPost(
 // ---------------------------------------------------------------------------
 
 export async function plaidInitFlow(
-  rl: ReadlineInterface,
   existingConfig?: Record<string, unknown>,
 ): Promise<PlaidInitResult> {
   // ── Step 1: Welcome ──────────────────────────────────────────────────
   printSection("Plaid Setup");
-  console.log("  Prerequisites:");
-  console.log("    - A Plaid account (https://plaid.com)");
-  console.log("    - Your client_id and secret from the Plaid dashboard\n");
+  p.log.info(
+    "Prerequisites:\n" +
+    "  - A Plaid account (https://plaid.com)\n" +
+    "  - Your client_id and secret from the Plaid dashboard",
+  );
 
   // ── Step 2: Open dashboard ───────────────────────────────────────────
-  await askWithBrowserOpen(rl, DASHBOARD_URL);
+  await askWithBrowserOpen(DASHBOARD_URL);
 
   // ── Step 3: Credentials ──────────────────────────────────────────────
   let clientId: string;
   let secret: string;
 
   if (existingConfig?.clientId && existingConfig?.secret) {
-    const reuse = await rl.question(
-      `  Reuse existing credentials (client_id: ${String(existingConfig.clientId).slice(0, 8)}...)? [Y/n]: `,
-    );
-    if (!reuse || reuse.toLowerCase() !== "n") {
+    const reuse = await p.confirm({
+      message: `Reuse existing credentials (client_id: ${String(existingConfig.clientId).slice(0, 8)}...)?`,
+      initialValue: true,
+    });
+    handleCancel(reuse);
+
+    if (reuse) {
       clientId = String(existingConfig.clientId);
       secret = String(existingConfig.secret);
     } else {
-      clientId = await rl.question("  Plaid client_id: ");
-      secret = await rl.question("  Plaid secret: ");
+      const id = await p.text({ message: "Plaid client_id", placeholder: "from dashboard.plaid.com/developers/keys" });
+      handleCancel(id);
+      const sec = await p.password({ message: "Plaid secret" });
+      handleCancel(sec);
+      clientId = id as string;
+      secret = sec as string;
     }
   } else {
-    clientId = await rl.question("  Plaid client_id: ");
-    secret = await rl.question("  Plaid secret: ");
+    const id = await p.text({ message: "Plaid client_id", placeholder: "from dashboard.plaid.com/developers/keys" });
+    handleCancel(id);
+    const sec = await p.password({ message: "Plaid secret" });
+    handleCancel(sec);
+    clientId = id as string;
+    secret = sec as string;
   }
 
   if (!clientId.trim()) {
@@ -123,30 +135,36 @@ export async function plaidInitFlow(
   secret = secret.trim();
 
   // ── Step 4: Environment ──────────────────────────────────────────────
-  printSection("Environment");
-  console.log("  1) sandbox   — test data, no real bank needed");
-  console.log("  2) development — real banks, limited users");
-  console.log("  3) production — full access\n");
+  const environment = await p.select({
+    message: "Environment",
+    options: [
+      { value: "sandbox", label: "Sandbox", hint: "test data, no real bank needed" },
+      { value: "development", label: "Development", hint: "real banks, limited users" },
+      { value: "production", label: "Production", hint: "full access" },
+    ],
+  });
+  handleCancel(environment);
 
-  const envChoice = (await rl.question("  Choose environment [1]: ")) || "1";
-  const envMap: Record<string, string> = { "1": "sandbox", "2": "development", "3": "production" };
-  const environment = envMap[envChoice] || "sandbox";
-  const baseUrl = PLAID_ENVS[environment];
-
+  const baseUrl = PLAID_ENVS[environment as string];
   let accessToken: string;
 
   // ── Step 5: Token creation ───────────────────────────────────────────
   if (environment === "sandbox") {
     printSection("Sandbox Setup");
-    console.log("  Available test institutions:");
-    for (let i = 0; i < SANDBOX_INSTITUTIONS.length; i++) {
-      console.log(`    ${i + 1}) ${SANDBOX_INSTITUTIONS[i].name}`);
-    }
-    const instChoice = (await rl.question("\n  Choose institution [1]: ")) || "1";
-    const instIdx = Math.max(0, Math.min(parseInt(instChoice, 10) - 1, SANDBOX_INSTITUTIONS.length - 1));
-    const institution = SANDBOX_INSTITUTIONS[instIdx];
 
-    console.log(`\n  Creating sandbox token for ${institution.name}...`);
+    const institutionId = await p.select({
+      message: "Test institution",
+      options: SANDBOX_INSTITUTIONS.map((inst) => ({
+        value: inst.id,
+        label: inst.name,
+      })),
+    });
+    handleCancel(institutionId);
+
+    const institution = SANDBOX_INSTITUTIONS.find((i) => i.id === institutionId)!;
+
+    const s = p.spinner();
+    s.start(`Creating sandbox token for ${institution.name}...`);
 
     const createResp = (await plaidPost(baseUrl, "/sandbox/public_token/create", clientId, secret, {
       institution_id: institution.id,
@@ -154,6 +172,7 @@ export async function plaidInitFlow(
     })) as { public_token?: string };
 
     if (!createResp.public_token) {
+      s.stop("Failed");
       throw new Error("Sandbox token creation failed — no public_token returned");
     }
 
@@ -162,26 +181,32 @@ export async function plaidInitFlow(
     })) as { access_token?: string };
 
     if (!exchangeResp.access_token) {
+      s.stop("Failed");
       throw new Error("Token exchange failed — no access_token returned");
     }
 
     accessToken = exchangeResp.access_token;
-    console.log("  Sandbox access token obtained.\n");
+    s.stop("Sandbox access token obtained.");
   } else {
     // ── Step 6: Dev/Prod — paste token ─────────────────────────────────
     printSection("Access Token");
-    console.log("  For development/production, paste an existing access token.");
-    console.log("  (Create one via Plaid Link in your app first)\n");
-    accessToken = await rl.question("  Access token: ");
-    if (!accessToken.trim()) {
+    p.log.info(
+      "For development/production, paste an existing access token.\n" +
+      "(Create one via Plaid Link in your app first)",
+    );
+
+    const token = await p.text({ message: "Access token" });
+    handleCancel(token);
+    accessToken = (token as string).trim();
+
+    if (!accessToken) {
       throw new Error("Access token is required for non-sandbox environments");
     }
-    accessToken = accessToken.trim();
   }
 
   // ── Step 7: Validate via /accounts/get ───────────────────────────────
-  printSection("Validating");
-  console.log("  Fetching accounts...\n");
+  const vs = p.spinner();
+  vs.start("Fetching accounts...");
 
   const accountsResp = (await plaidPost(baseUrl, "/accounts/get", clientId, secret, {
     access_token: accessToken,
@@ -197,8 +222,11 @@ export async function plaidInitFlow(
   };
 
   if (!accountsResp.accounts || accountsResp.accounts.length === 0) {
+    vs.stop("No accounts found");
     throw new Error("No accounts returned — check your credentials and access token");
   }
+
+  vs.stop(`Found ${accountsResp.accounts.length} account(s).`);
 
   const accounts: BankAccount[] = accountsResp.accounts.map((a) => ({
     uid: a.account_id,
@@ -211,17 +239,23 @@ export async function plaidInitFlow(
   printAccounts(accounts);
 
   // ── Step 8: Label ────────────────────────────────────────────────────
-  const defaultLabel = `Plaid (${environment})`;
-  const label = (await rl.question(`\n  Connection label [${defaultLabel}]: `)) || defaultLabel;
+  const env = environment as string;
+  const defaultLabel = `Plaid (${env})`;
+  const label = await p.text({
+    message: "Connection label",
+    placeholder: defaultLabel,
+    defaultValue: defaultLabel,
+  });
+  handleCancel(label);
 
   return {
     provider: "plaid",
-    label,
+    label: label as string,
     config: {
       clientId,
       secret,
       accessToken,
-      environment,
+      environment: env,
       accounts,
     },
   };

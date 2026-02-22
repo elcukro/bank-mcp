@@ -23,26 +23,36 @@ vi.mock("node:crypto", async (importOriginal) => {
   };
 });
 
+vi.mock("@clack/prompts", () => {
+  const answers: unknown[] = [];
+  let idx = 0;
+  return {
+    intro: vi.fn(),
+    outro: vi.fn(),
+    log: { step: vi.fn(), info: vi.fn(), warn: vi.fn(), success: vi.fn() },
+    note: vi.fn(),
+    cancel: vi.fn(),
+    isCancel: vi.fn(() => false),
+    confirm: vi.fn(() => Promise.resolve(answers[idx++])),
+    text: vi.fn(() => Promise.resolve(answers[idx++])),
+    password: vi.fn(() => Promise.resolve(answers[idx++])),
+    select: vi.fn(() => Promise.resolve(answers[idx++])),
+    spinner: vi.fn(() => ({ start: vi.fn(), stop: vi.fn() })),
+    __setAnswers: (a: unknown[]) => { answers.length = 0; answers.push(...a); idx = 0; },
+  };
+});
+
 import {
   enableBankingConnectFlow,
   extractCodeFromUrl,
 } from "../../../../src/connect/flows/enable-banking.js";
 import { httpFetch } from "../../../../src/utils/http.js";
 import { openBrowser } from "../../../../src/connect/browser.js";
+import * as p from "@clack/prompts";
 
 const mockedFetch = vi.mocked(httpFetch);
 const mockedOpenBrowser = vi.mocked(openBrowser);
-
-// Mock readline interface
-function createMockRL(answers: string[]) {
-  let answerIdx = 0;
-  return {
-    question: vi.fn().mockImplementation(() => {
-      return Promise.resolve(answers[answerIdx++] || "");
-    }),
-    close: vi.fn(),
-  } as unknown as import("node:readline/promises").Interface;
-}
+const setAnswers = (p as unknown as { __setAnswers: (a: unknown[]) => void }).__setAnswers;
 
 // The redirect URL the user would paste (with correct state)
 const VALID_REDIRECT =
@@ -91,15 +101,15 @@ describe("enableBankingConnectFlow", () => {
   });
 
   it("completes full flow: credentials → country → bank → auth → paste URL → session → accounts", async () => {
-    const rl = createMockRL([
-      "",                     // step 0: already logged in (Enter)
-      "test-app-id",          // appId
-      "/tmp/test.pem",        // privateKeyPath
-      "",                     // redirect URI: already done (Enter to skip)
-      "6",                    // country: Poland
-      "1",                    // bank: ING Bank Slaski
-      VALID_REDIRECT,         // paste redirect URL
-      "",                     // label: default (ING Bank Slaski)
+    setAnswers([
+      false,              // p.confirm: open enablebanking.com? → no
+      "test-app-id",      // p.text: App ID
+      "/tmp/test.pem",    // p.text: private key path
+      true,               // p.confirm: redirect URI already done? → yes
+      "PL",               // p.select: country → Poland
+      0,                  // p.select: bank → ING Bank Slaski (index 0)
+      VALID_REDIRECT,     // p.text: paste redirect URL
+      "ING Bank Slaski",  // p.text: label (default)
     ]);
 
     mockedFetch
@@ -110,7 +120,7 @@ describe("enableBankingConnectFlow", () => {
       .mockResolvedValueOnce(accountDetails001)     // account 1
       .mockResolvedValueOnce(accountDetails002);    // account 2
 
-    const result = await enableBankingConnectFlow(rl);
+    const result = await enableBankingConnectFlow();
 
     // Verify result
     expect(result.provider).toBe("enable-banking");
@@ -147,14 +157,14 @@ describe("enableBankingConnectFlow", () => {
   });
 
   it("reuses existing credentials when user confirms", async () => {
-    const rl = createMockRL([
-      "",              // step 0: already logged in
-      "",              // reuse credentials (Y=default)
-      "",              // redirect URI: already done (skip)
-      "6",             // country: Poland
-      "1",             // bank: ING
-      VALID_REDIRECT,  // paste redirect URL
-      "ING",           // label
+    setAnswers([
+      false,              // p.confirm: open browser? → no
+      true,               // p.confirm: reuse credentials? → yes
+      true,               // p.confirm: redirect URI done? → yes
+      "PL",               // p.select: country
+      0,                  // p.select: bank → ING
+      VALID_REDIRECT,     // p.text: redirect URL
+      "ING",              // p.text: label
     ]);
 
     const existingConfig = {
@@ -171,7 +181,7 @@ describe("enableBankingConnectFlow", () => {
       .mockResolvedValueOnce(accountDetails001)
       .mockResolvedValueOnce(accountDetails002);
 
-    const result = await enableBankingConnectFlow(rl, existingConfig);
+    const result = await enableBankingConnectFlow(existingConfig);
 
     expect(result.config.appId).toBe("existing-app-id");
     expect(result.config.privateKeyPath).toBe("/existing/key.pem");
@@ -179,10 +189,10 @@ describe("enableBankingConnectFlow", () => {
   });
 
   it("throws on invalid private key", async () => {
-    const rl = createMockRL([
-      "",                      // step 0: already logged in
-      "test-app-id",
-      "/nonexistent/key.pem",
+    setAnswers([
+      false,                    // p.confirm: open browser? → no
+      "test-app-id",            // p.text: App ID
+      "/nonexistent/key.pem",   // p.text: key path
     ]);
 
     const { generateJwt } = await import(
@@ -192,55 +202,55 @@ describe("enableBankingConnectFlow", () => {
       throw new Error("ENOENT: no such file");
     });
 
-    await expect(enableBankingConnectFlow(rl)).rejects.toThrow(
+    await expect(enableBankingConnectFlow()).rejects.toThrow(
       "Cannot read private key",
     );
   });
 
   it("throws when no banks found for country", async () => {
-    const rl = createMockRL([
-      "",              // step 0: already logged in
-      "test-app-id",
-      "/tmp/test.pem",
-      "",  // redirect URI: skip
-      "6", // PL
+    setAnswers([
+      false,            // p.confirm: open browser? → no
+      "test-app-id",    // p.text: App ID
+      "/tmp/test.pem",  // p.text: key path
+      true,             // p.confirm: redirect URI done? → yes
+      "PL",             // p.select: country
     ]);
 
     mockedFetch.mockResolvedValueOnce({ aspsps: [] });
 
-    await expect(enableBankingConnectFlow(rl)).rejects.toThrow(
+    await expect(enableBankingConnectFlow()).rejects.toThrow(
       "No banks found",
     );
   });
 
   it("throws when auth API returns no URL", async () => {
-    const rl = createMockRL([
-      "",              // step 0: already logged in
-      "test-app-id",
-      "/tmp/test.pem",
-      "",  // redirect URI: skip
-      "6", // PL
-      "1", // ING
+    setAnswers([
+      false,            // p.confirm: open browser? → no
+      "test-app-id",    // p.text: App ID
+      "/tmp/test.pem",  // p.text: key path
+      true,             // p.confirm: redirect URI done? → yes
+      "PL",             // p.select: country
+      0,                // p.select: bank → ING
     ]);
 
     mockedFetch
       .mockResolvedValueOnce(aspspsResponse)
       .mockResolvedValueOnce({ error: "invalid_aspsp" }); // no url field
 
-    await expect(enableBankingConnectFlow(rl)).rejects.toThrow(
+    await expect(enableBankingConnectFlow()).rejects.toThrow(
       "did not return an authorization URL",
     );
   });
 
   it("throws when session creation fails", async () => {
-    const rl = createMockRL([
-      "",              // step 0: already logged in
-      "test-app-id",
-      "/tmp/test.pem",
-      "",  // redirect URI: skip
-      "6",
-      "1",
-      VALID_REDIRECT,
+    setAnswers([
+      false,            // p.confirm: open browser? → no
+      "test-app-id",    // p.text: App ID
+      "/tmp/test.pem",  // p.text: key path
+      true,             // p.confirm: redirect URI done? → yes
+      "PL",             // p.select: country
+      0,                // p.select: bank → ING
+      VALID_REDIRECT,   // p.text: redirect URL
     ]);
 
     mockedFetch
@@ -248,21 +258,21 @@ describe("enableBankingConnectFlow", () => {
       .mockResolvedValueOnce(authResponse)
       .mockResolvedValueOnce({}); // no session_id
 
-    await expect(enableBankingConnectFlow(rl)).rejects.toThrow(
+    await expect(enableBankingConnectFlow()).rejects.toThrow(
       "no session_id returned",
     );
   });
 
   it("handles custom label override", async () => {
-    const rl = createMockRL([
-      "",              // step 0: already logged in
-      "test-app-id",
-      "/tmp/test.pem",
-      "",  // redirect URI: skip
-      "6",
-      "1",
-      VALID_REDIRECT,
-      "My ING Account", // custom label
+    setAnswers([
+      false,              // p.confirm: open browser? → no
+      "test-app-id",      // p.text: App ID
+      "/tmp/test.pem",    // p.text: key path
+      true,               // p.confirm: redirect URI done? → yes
+      "PL",               // p.select: country
+      0,                  // p.select: bank → ING
+      VALID_REDIRECT,     // p.text: redirect URL
+      "My ING Account",   // p.text: label
     ]);
 
     mockedFetch
@@ -273,7 +283,7 @@ describe("enableBankingConnectFlow", () => {
       .mockResolvedValueOnce(accountDetails001)
       .mockResolvedValueOnce(accountDetails002);
 
-    const result = await enableBankingConnectFlow(rl);
+    const result = await enableBankingConnectFlow();
     expect(result.label).toBe("My ING Account");
   });
 });
