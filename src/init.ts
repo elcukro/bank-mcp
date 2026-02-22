@@ -1,90 +1,100 @@
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
 import { loadConfig, saveConfig, getConfigPath } from "./config.js";
-import { listProviders, getProvider } from "./providers/registry.js";
+import { printBanner } from "./init/ui.js";
+import { plaidInitFlow } from "./init/flows/plaid.js";
+import { tellerInitFlow } from "./init/flows/teller.js";
+import { enableBankingConnectFlow } from "./connect/flows/enable-banking.js";
+import { tinkConnectFlow } from "./connect/flows/tink.js";
 import type { ConnectionConfig } from "./types.js";
 
+interface ProviderOption {
+  key: string;
+  displayName: string;
+  description: string;
+  flow: (
+    rl: import("node:readline/promises").Interface,
+    existingConfig?: Record<string, unknown>,
+  ) => Promise<{
+    provider: string;
+    label: string;
+    config: Record<string, unknown>;
+  }>;
+}
+
+const PROVIDERS: ProviderOption[] = [
+  {
+    key: "plaid",
+    displayName: "Plaid",
+    description: "US, UK, EU \u00b7 12,000+ institutions",
+    flow: plaidInitFlow,
+  },
+  {
+    key: "teller",
+    displayName: "Teller",
+    description: "US \u00b7 real-time data, instant access",
+    flow: tellerInitFlow,
+  },
+  {
+    key: "tink",
+    displayName: "Tink",
+    description: "EU \u00b7 PSD2 open banking",
+    flow: tinkConnectFlow,
+  },
+  {
+    key: "enable-banking",
+    displayName: "Enable Banking",
+    description: "EU \u00b7 PSD2 aggregation",
+    flow: enableBankingConnectFlow,
+  },
+];
+
 /**
- * Interactive setup wizard — walks the user through configuring a
- * bank connection. Uses plain readline (no heavy dependencies).
+ * Interactive setup wizard — unified orchestrator that routes to
+ * provider-specific guided flows.
  */
 export async function runInit(): Promise<void> {
   const rl = createInterface({ input: stdin, output: stdout });
 
   try {
-    console.log("\n  bank-mcp — Banking data for your AI assistant\n");
+    printBanner();
 
-    // 1. Select provider
-    const providers = listProviders();
-    console.log("  Available providers:");
-    providers.forEach((p, i) => {
-      console.log(`    ${i + 1}. ${p.displayName}`);
+    console.log("  Choose your banking provider:\n");
+    PROVIDERS.forEach((p, i) => {
+      const name = p.displayName.padEnd(16);
+      console.log(`    ${i + 1}. ${name}\u2014 ${p.description}`);
     });
 
-    const providerIdx =
-      parseInt(await rl.question("\n? Select provider (number): "), 10) - 1;
-    const provider = providers[providerIdx];
+    const choice = await rl.question(
+      `\n? Select provider (1-${PROVIDERS.length}): `,
+    );
+    const idx = parseInt(choice, 10) - 1;
+    const provider = PROVIDERS[idx];
     if (!provider) {
-      console.error("  Invalid selection.");
+      console.error("\n  Invalid selection.\n");
       return;
     }
 
-    // 2. Collect config fields
-    const schema = provider.getConfigSchema();
-    const config: Record<string, unknown> = {};
+    // Check for existing credentials to reuse
+    const appConfig = loadConfig();
+    const existingConn = appConfig.connections.find(
+      (c) => c.provider === provider.key,
+    );
 
-    for (const field of schema) {
-      const label = field.required ? field.label : `${field.label} (optional)`;
-      const defaultHint = field.default ? ` [${field.default}]` : "";
-      const answer = await rl.question(`? ${label}${defaultHint}: `);
-      config[field.name] = answer || field.default || "";
-    }
+    // Run the provider's guided flow
+    const result = await provider.flow(rl, existingConn?.config);
 
-    // 3. Connection label
-    const label = await rl.question("? Connection label (e.g. Chase - Main):");
-
-    // 4. Connection ID (slug from label)
-    const id = (label || provider.name)
+    // Build connection ID (slug from label)
+    const id = result.label
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "");
 
-    // 5. Validate by fetching accounts
-    console.log("\n  Validating connection...");
-    try {
-      provider.validateConfig(config);
-      const accounts = await provider.listAccounts(config);
-
-      if (accounts.length === 0) {
-        console.log("  Warning: No accounts found. Config saved anyway.\n");
-      } else {
-        console.log(`  Found ${accounts.length} account(s):`);
-        for (const acc of accounts) {
-          console.log(`    - ${acc.iban} (${acc.name}, ${acc.currency})`);
-        }
-
-        // Store fetched accounts in config for faster subsequent access
-        config.accounts = accounts.map((a) => ({
-          uid: a.uid,
-          iban: a.iban,
-          name: a.name,
-          currency: a.currency,
-        }));
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error(`  Validation failed: ${msg}`);
-      const proceed = await rl.question("  Save anyway? (y/N): ");
-      if (proceed.toLowerCase() !== "y") return;
-    }
-
-    // 6. Save config
-    const appConfig = loadConfig();
     const connection: ConnectionConfig = {
       id,
-      provider: provider.name,
-      label: label || provider.displayName,
-      config,
+      provider: result.provider,
+      label: result.label,
+      config: result.config,
     };
 
     // Replace if same ID exists, otherwise append
@@ -97,8 +107,8 @@ export async function runInit(): Promise<void> {
 
     saveConfig(appConfig);
 
-    console.log(`\n  Config saved to ${getConfigPath()}`);
-    console.log(`\n  Add to your MCP client config (.mcp.json):`);
+    console.log(`\n  \u2713 Config saved to ${getConfigPath()}`);
+    console.log(`\n  Add to your MCP client config:`);
     console.log(
       `  { "mcpServers": { "bank": { "command": "npx", "args": ["@bank-mcp/server"] } } }`,
     );
