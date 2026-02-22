@@ -41,7 +41,7 @@ export async function runInit(): Promise<void> {
     }
 
     // 3. Connection label
-    const label = await rl.question("? Connection label (e.g. ING Bank - Main): ");
+    const label = await rl.question("? Connection label (e.g. Chase - Main):");
 
     // 4. Connection ID (slug from label)
     const id = (label || provider.name)

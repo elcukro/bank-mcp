@@ -1,6 +1,6 @@
 {
   "name": "@bank-mcp/server",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Banking data MCP server — give your AI assistant read-only access to bank accounts via pluggable providers",
   "type": "module",
   "bin": {
