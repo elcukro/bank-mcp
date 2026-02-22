@@ -12,14 +12,28 @@ const BASE_URL = "https://api.tink.com";
 
 interface TinkConfig {
   accessToken: string;
+  /** True when connection comes from Account Check (report-based, no live API). */
+  isReportOnly: boolean;
+  /** Cached accounts from the account verification report. */
+  cachedAccounts?: Array<{ uid: string; iban: string; name: string; currency: string }>;
 }
 
 function parseConfig(raw: Record<string, unknown>): TinkConfig {
   const accessToken = raw.accessToken as string;
-  if (!accessToken) {
-    throw new Error("Tink config requires: accessToken");
+  const reportId = raw.reportId as string | undefined;
+  const isReportOnly = !!reportId && !accessToken;
+
+  if (!accessToken && !isReportOnly) {
+    throw new Error("Tink config requires: accessToken (or reportId for Account Check connections)");
   }
-  return { accessToken };
+
+  return {
+    accessToken: accessToken || "",
+    isReportOnly,
+    cachedAccounts: isReportOnly
+      ? (raw.accounts as TinkConfig["cachedAccounts"])
+      : undefined,
+  };
 }
 
 /**
@@ -48,14 +62,28 @@ async function tinkGet(
 /**
  * Parse Tink's fixed-point decimal amount.
  *
- * Tink represents amounts as { unscaledValue, scale } where
- * actual = unscaledValue * 10^(-scale).
+ * Tink has two formats:
+ *   Flat (accounts/balances): { unscaledValue: "15099", scale: 2 }
+ *   Nested (transactions):    { value: { unscaledValue: "15099", scale: "2" } }
  *
- * Example: { unscaledValue: "15099", scale: 2 } → 150.99
+ * actual = unscaledValue * 10^(-scale)
+ * Example: unscaledValue="15099", scale=2 → 150.99
  */
 function parseAmount(amount: TinkAmount): number {
-  const unscaled = parseFloat(amount.unscaledValue);
-  return unscaled * Math.pow(10, -(amount.scale ?? 0));
+  let unscaled: number;
+  let scale: number;
+
+  if (amount.value) {
+    // Nested format (transactions)
+    unscaled = parseFloat(amount.value.unscaledValue);
+    scale = parseInt(amount.value.scale, 10) || 0;
+  } else {
+    // Flat format (accounts/balances)
+    unscaled = parseFloat(amount.unscaledValue || "0");
+    scale = typeof amount.scale === "number" ? amount.scale : 0;
+  }
+
+  return unscaled * Math.pow(10, -scale);
 }
 
 export class TinkProvider extends BankProvider {
@@ -83,6 +111,17 @@ export class TinkProvider extends BankProvider {
   ): Promise<BankAccount[]> {
     const tc = parseConfig(config);
 
+    // Account Check connections: return cached report data
+    if (tc.isReportOnly && tc.cachedAccounts) {
+      return tc.cachedAccounts.map((a) => ({
+        uid: a.uid,
+        iban: a.iban,
+        name: a.name,
+        currency: a.currency,
+        connectionId: "",
+      }));
+    }
+
     const data = (await tinkGet(tc, "/data/v2/accounts")) as TinkAccountsResponse;
 
     return data.accounts.map((a) => ({
@@ -100,6 +139,10 @@ export class TinkProvider extends BankProvider {
     filter?: TransactionFilter,
   ): Promise<Transaction[]> {
     const tc = parseConfig(config);
+
+    if (tc.isReportOnly) {
+      return []; // Account Check connections have no transaction access
+    }
 
     const allTx: Transaction[] = [];
     let pageToken: string | undefined;
@@ -155,42 +198,74 @@ export class TinkProvider extends BankProvider {
   ): Promise<Balance[]> {
     const tc = parseConfig(config);
 
-    const data = (await tinkGet(
-      tc,
-      `/data/v2/accounts/${accountId}/balances`,
-    )) as TinkBalancesResponse;
-
-    const balances: Balance[] = [];
-
-    if (data.balances?.bookedBalance) {
-      const amt = data.balances.bookedBalance.amount;
-      balances.push({
-        accountId,
-        amount: parseAmount(amt),
-        currency: amt.currencyCode,
-        type: "booked",
-      });
-    }
-    if (data.balances?.availableBalance) {
-      const amt = data.balances.availableBalance.amount;
-      balances.push({
-        accountId,
-        amount: parseAmount(amt),
-        currency: amt.currencyCode,
-        type: "available",
-      });
+    if (tc.isReportOnly) {
+      return []; // Account Check connections have no live balance data
     }
 
-    return balances;
+    // Try v2 first, fall back to v1 accounts (v2 returns 403 in sandbox)
+    try {
+      const data = (await tinkGet(
+        tc,
+        `/data/v2/accounts/${accountId}/balances`,
+      )) as TinkBalancesResponse;
+
+      const balances: Balance[] = [];
+
+      if (data.balances?.bookedBalance) {
+        const amt = data.balances.bookedBalance.amount;
+        balances.push({
+          accountId,
+          amount: parseAmount(amt),
+          currency: amt.currencyCode,
+          type: "booked",
+        });
+      }
+      if (data.balances?.availableBalance) {
+        const amt = data.balances.availableBalance.amount;
+        balances.push({
+          accountId,
+          amount: parseAmount(amt),
+          currency: amt.currencyCode,
+          type: "available",
+        });
+      }
+
+      return balances;
+    } catch {
+      // v2 failed (403 in sandbox) — fall back to v1 accounts list
+      const v1Data = (await tinkGet(tc, "/api/v1/accounts/list")) as {
+        accounts: Array<{
+          id: string;
+          balance: number;
+          type: string;
+          currencyDenominatedBalance?: { unscaledValue: string; scale: number; currencyCode: string };
+        }>;
+      };
+
+      const acc = v1Data.accounts.find((a) => a.id === accountId);
+      if (!acc) return [];
+
+      return [
+        {
+          accountId,
+          amount: acc.balance,
+          currency: acc.currencyDenominatedBalance?.currencyCode || "PLN",
+          type: "booked" as const,
+        },
+      ];
+    }
   }
 }
 
 // --- Raw Tink API types ---
 
 interface TinkAmount {
-  unscaledValue: string;
-  scale: number;
+  /** Flat format (accounts/balances) */
+  unscaledValue?: string;
+  scale?: number;
   currencyCode: string;
+  /** Nested format (transactions) */
+  value?: { unscaledValue: string; scale: string };
 }
 
 interface TinkAccountsResponse {
@@ -266,9 +341,11 @@ interface TinkBalancesResponse {
  *   display (cleanest) > original (raw) > detailed.unstructured
  */
 function normalizeTransaction(raw: TinkTransaction): Transaction {
-  const absAmount = parseAmount(raw.amount);
-  const isDebit = raw.types?.type === "DEBIT";
-  const amount = isDebit ? -absAmount : absAmount;
+  const rawAmount = parseAmount(raw.amount);
+  // Detect debit: explicit type, or negative amount (Demo Bank uses "DEFAULT" type)
+  const isDebit =
+    raw.types?.type === "DEBIT" || (raw.types?.type === "DEFAULT" && rawAmount < 0);
+  const amount = isDebit && rawAmount > 0 ? -rawAmount : rawAmount;
 
   const merchantName = raw.merchantInformation?.merchantName || undefined;
   const category = raw.categories?.pfm?.name || undefined;
