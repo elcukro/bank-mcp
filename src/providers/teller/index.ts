@@ -13,19 +13,17 @@ import type {
 const API_BASE = "https://api.teller.io";
 
 interface TellerConfig {
-  certificatePath: string;
-  privateKeyPath: string;
+  certificatePath?: string;
+  privateKeyPath?: string;
   accessToken: string;
 }
 
 function parseConfig(raw: Record<string, unknown>): TellerConfig {
-  const certificatePath = raw.certificatePath as string;
-  const privateKeyPath = raw.privateKeyPath as string;
+  const certificatePath = (raw.certificatePath as string) || undefined;
+  const privateKeyPath = (raw.privateKeyPath as string) || undefined;
   const accessToken = raw.accessToken as string;
-  if (!certificatePath || !privateKeyPath || !accessToken) {
-    throw new Error(
-      "Teller config requires: certificatePath, privateKeyPath, accessToken",
-    );
+  if (!accessToken) {
+    throw new Error("Teller config requires: accessToken");
   }
   return { certificatePath, privateKeyPath, accessToken };
 }
@@ -37,11 +35,15 @@ function expandPath(p: string): string {
 /**
  * Create an HTTPS agent with mutual TLS client certificate.
  *
- * Teller requires mTLS for all API requests — the app proves its
+ * Teller requires mTLS for development/production — the app proves its
  * identity at the TLS layer, then user enrollment is authenticated
  * via HTTP Basic Auth (token:empty_password).
+ *
+ * In sandbox mode, mTLS is not required — returns undefined so
+ * tellerFetch uses the default HTTPS agent (no client cert).
  */
-function createAgent(config: TellerConfig): Agent {
+function createAgent(config: TellerConfig): Agent | undefined {
+  if (!config.certificatePath || !config.privateKeyPath) return undefined;
   return new Agent({
     cert: readFileSync(expandPath(config.certificatePath)),
     key: readFileSync(expandPath(config.privateKeyPath)),
@@ -58,21 +60,23 @@ function createAgent(config: TellerConfig): Agent {
 async function tellerFetch(
   url: string,
   config: TellerConfig,
-  agent: Agent,
+  agent: Agent | undefined,
 ): Promise<unknown> {
   const auth = Buffer.from(`${config.accessToken}:`).toString("base64");
+
+  const opts: Parameters<typeof httpsRequest>[1] = {
+    method: "GET",
+    headers: {
+      Authorization: `Basic ${auth}`,
+      Accept: "application/json",
+    },
+  };
+  if (agent) opts.agent = agent;
 
   return new Promise((resolve, reject) => {
     const req = httpsRequest(
       url,
-      {
-        method: "GET",
-        agent,
-        headers: {
-          Authorization: `Basic ${auth}`,
-          Accept: "application/json",
-        },
-      },
+      opts,
       (res) => {
         const chunks: Buffer[] = [];
         res.on("data", (chunk: Buffer) => chunks.push(chunk));
@@ -115,15 +119,15 @@ export class TellerProvider extends BankProvider {
     return [
       {
         name: "certificatePath",
-        label: "Path to client certificate (.pem)",
+        label: "Path to client certificate (.pem) — optional for sandbox",
         type: "path",
-        required: true,
+        required: false,
       },
       {
         name: "privateKeyPath",
-        label: "Path to private key (.pem)",
+        label: "Path to private key (.pem) — optional for sandbox",
         type: "path",
-        required: true,
+        required: false,
       },
       {
         name: "accessToken",

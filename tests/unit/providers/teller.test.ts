@@ -88,13 +88,12 @@ describe("TellerProvider", () => {
       ).toThrow("accessToken");
     });
 
-    it("rejects missing certificatePath", () => {
+    it("accepts config without certificate paths (sandbox mode)", () => {
       expect(() =>
         provider.validateConfig({
-          privateKeyPath: "/tmp/k.pem",
           accessToken: "tok",
         }),
-      ).toThrow("certificatePath");
+      ).not.toThrow();
     });
   });
 
@@ -230,7 +229,9 @@ describe("TellerProvider", () => {
       expect(names).toContain("certificatePath");
       expect(names).toContain("privateKeyPath");
       expect(names).toContain("accessToken");
-      expect(schema.every((f) => f.required)).toBe(true);
+      expect(schema.find((f) => f.name === "accessToken")?.required).toBe(true);
+      expect(schema.find((f) => f.name === "certificatePath")?.required).toBe(false);
+      expect(schema.find((f) => f.name === "privateKeyPath")?.required).toBe(false);
     });
   });
 });
