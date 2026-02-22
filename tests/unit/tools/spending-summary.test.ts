@@ -30,7 +30,7 @@ describe("spendingSummary", () => {
     expect(result.groups).toBeDefined();
     expect(result.groups.length).toBeGreaterThan(0);
     expect(result.totalSpent).toBeGreaterThan(0);
-    expect(result.currency).toBe("PLN");
+    expect(result.currency).toBe("USD");
 
     // All groups should have positive totalSpent
     for (const group of result.groups) {
