@@ -1,65 +1,64 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+vi.mock("@clack/prompts", () => ({
+  intro: vi.fn(),
+  log: { step: vi.fn(), info: vi.fn() },
+  note: vi.fn(),
+  confirm: vi.fn(),
+  cancel: vi.fn(),
+  isCancel: vi.fn(() => false),
+}));
+
 vi.mock("../../../src/connect/browser.js", () => ({
   openBrowser: vi.fn(),
 }));
 
+import * as p from "@clack/prompts";
 import { printBanner, printSection, printAccounts, askWithBrowserOpen } from "../../../src/init/ui.js";
 import { openBrowser } from "../../../src/connect/browser.js";
 
 const mockedOpenBrowser = vi.mocked(openBrowser);
-
-function createMockRL(answers: string[]) {
-  let idx = 0;
-  return {
-    question: vi.fn().mockImplementation(() => Promise.resolve(answers[idx++] || "")),
-    close: vi.fn(),
-  } as unknown as import("node:readline/promises").Interface;
-}
+const mockedConfirm = vi.mocked(p.confirm);
 
 describe("TUI utilities", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.spyOn(console, "log").mockImplementation(() => {});
   });
 
-  it("printBanner outputs welcome box", () => {
+  it("printBanner calls p.intro with banner text", () => {
     printBanner();
-    const output = (console.log as ReturnType<typeof vi.fn>).mock.calls
-      .map((c: unknown[]) => c[0]).join("\n");
-    expect(output).toContain("bank-mcp");
-    expect(output).toContain("Connect your bank account");
+    expect(p.intro).toHaveBeenCalledWith("bank-mcp — Connect your bank account");
   });
 
-  it("printSection outputs titled section", () => {
+  it("printSection calls p.log.step", () => {
     printSection("Step 1: Credentials");
-    const output = (console.log as ReturnType<typeof vi.fn>).mock.calls
-      .map((c: unknown[]) => c[0]).join("\n");
-    expect(output).toContain("Step 1: Credentials");
-    expect(output).toContain("──");
+    expect(p.log.step).toHaveBeenCalledWith("Step 1: Credentials");
   });
 
-  it("printAccounts formats account list", () => {
+  it("printAccounts formats account list as note", () => {
     printAccounts([
       { uid: "1", iban: "PL123", name: "Checking", currency: "PLN", connectionId: "" },
       { uid: "2", iban: "PL456", name: "Savings", currency: "PLN", connectionId: "" },
     ]);
-    const output = (console.log as ReturnType<typeof vi.fn>).mock.calls
-      .map((c: unknown[]) => c[0]).join("\n");
-    expect(output).toContain("PL123");
-    expect(output).toContain("Checking");
-    expect(output).toContain("2 account(s)");
+    expect(p.note).toHaveBeenCalledWith(
+      expect.stringContaining("PL123"),
+      "Found 2 account(s)",
+    );
   });
 
-  it("askWithBrowserOpen opens browser on 'o'", async () => {
-    const rl = createMockRL(["o"]);
-    await askWithBrowserOpen(rl, "https://example.com");
+  it("askWithBrowserOpen opens browser when confirmed", async () => {
+    mockedConfirm
+      .mockResolvedValueOnce(true)   // open browser? yes
+      .mockResolvedValueOnce(true);  // ready to continue? yes
+
+    await askWithBrowserOpen("https://example.com");
     expect(mockedOpenBrowser).toHaveBeenCalledWith("https://example.com");
   });
 
-  it("askWithBrowserOpen skips browser on Enter", async () => {
-    const rl = createMockRL([""]);
-    await askWithBrowserOpen(rl, "https://example.com");
+  it("askWithBrowserOpen skips browser when declined", async () => {
+    mockedConfirm.mockResolvedValueOnce(false); // open browser? no
+
+    await askWithBrowserOpen("https://example.com");
     expect(mockedOpenBrowser).not.toHaveBeenCalled();
   });
 });

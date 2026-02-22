@@ -1,35 +1,42 @@
-import type { Interface as ReadlineInterface } from "node:readline/promises";
+import * as p from "@clack/prompts";
 import type { BankAccount } from "../types.js";
 import { openBrowser } from "../connect/browser.js";
 
-export function printBanner(): void {
-  console.log("");
-  console.log("  ┌──────────────────────────────────────────┐");
-  console.log("  │  bank-mcp — Connect your bank account    │");
-  console.log("  └──────────────────────────────────────────┘");
-  console.log("");
-}
-
-export function printSection(title: string): void {
-  const line = "─".repeat(Math.max(0, 46 - title.length));
-  console.log(`\n  ── ${title} ${line}\n`);
-}
-
-export function printAccounts(accounts: BankAccount[]): void {
-  console.log(`  Found ${accounts.length} account(s):`);
-  for (const acc of accounts) {
-    console.log(`    • ${acc.iban} (${acc.name}, ${acc.currency})`);
+export function handleCancel(value: unknown): void {
+  if (p.isCancel(value)) {
+    p.cancel("Setup cancelled.");
+    process.exit(0);
   }
 }
 
-export async function askWithBrowserOpen(
-  rl: ReadlineInterface,
-  url: string,
-): Promise<void> {
-  const answer = await rl.question(`  Press 'o' to open ${url}, or Enter to continue: `);
-  if (answer.toLowerCase() === "o") {
+export function printBanner(): void {
+  p.intro("bank-mcp — Connect your bank account");
+}
+
+export function printSection(title: string): void {
+  p.log.step(title);
+}
+
+export function printAccounts(accounts: BankAccount[]): void {
+  const lines = accounts.map((acc) => `  ${acc.iban} (${acc.name}, ${acc.currency})`);
+  p.note(lines.join("\n"), `Found ${accounts.length} account(s)`);
+}
+
+export async function askWithBrowserOpen(url: string): Promise<void> {
+  const shouldOpen = await p.confirm({
+    message: `Open ${url} in your browser?`,
+    initialValue: false,
+  });
+  handleCancel(shouldOpen);
+
+  if (shouldOpen) {
     openBrowser(url);
-    console.log(`\n  Opened ${url}`);
-    await rl.question("  Press Enter once you're ready to continue... ");
+    p.log.info(`Opened ${url}`);
+
+    const ready = await p.confirm({
+      message: "Ready to continue?",
+      initialValue: true,
+    });
+    handleCancel(ready);
   }
 }

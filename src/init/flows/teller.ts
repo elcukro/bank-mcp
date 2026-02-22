@@ -3,10 +3,10 @@
  * account via Teller Connect (embedded widget served locally).
  */
 
-import type { Interface as ReadlineInterface } from "node:readline/promises";
+import * as p from "@clack/prompts";
 import { createServer, type Server } from "node:http";
 import { openBrowser } from "../../connect/browser.js";
-import { printSection, printAccounts, askWithBrowserOpen } from "../ui.js";
+import { printSection, printAccounts, askWithBrowserOpen, handleCancel } from "../ui.js";
 import type { BankAccount } from "../../types.js";
 
 /* ------------------------------------------------------------------ */
@@ -187,7 +187,7 @@ function serveTellerConnect(
     server.listen(0, "127.0.0.1", () => {
       const addr = server!.address();
       const port = typeof addr === "object" && addr ? addr.port : 0;
-      console.log(`\n  Teller Connect server listening on http://127.0.0.1:${port}`);
+      p.log.info(`Teller Connect server listening on http://127.0.0.1:${port}`);
       openBrowser(`http://127.0.0.1:${port}`);
 
       timer = setTimeout(() => {
@@ -242,18 +242,18 @@ async function fetchTellerAccounts(accessToken: string): Promise<BankAccount[]> 
 /* ------------------------------------------------------------------ */
 
 export async function tellerInitFlow(
-  rl: ReadlineInterface,
   existingConfig?: Record<string, unknown>,
 ): Promise<TellerInitResult> {
   // ── Step 1: Welcome ──────────────────────────────────────────────
   printSection("Teller — Connect your bank");
-  console.log("  Prerequisites:");
-  console.log("    1. A Teller account at https://teller.io");
-  console.log("    2. Your Application ID from the Teller dashboard");
-  console.log("");
+  p.log.info(
+    "Prerequisites:\n" +
+    "  1. A Teller account at https://teller.io\n" +
+    "  2. Your Application ID from the Teller dashboard",
+  );
 
   // ── Step 2: Open dashboard ───────────────────────────────────────
-  await askWithBrowserOpen(rl, "https://teller.io/dashboard");
+  await askWithBrowserOpen("https://teller.io/settings/application");
 
   // ── Step 3: Application ID ──────────────────────────────────────
   printSection("Step 1: Application ID");
@@ -261,16 +261,20 @@ export async function tellerInitFlow(
   let applicationId: string;
 
   if (existingAppId) {
-    const reuse = await rl.question(
-      `  Found existing Application ID (${existingAppId.slice(0, 8)}...). Use it? [Y/n] `,
-    );
-    applicationId = reuse.toLowerCase() === "n" ? "" : existingAppId;
+    const reuse = await p.confirm({
+      message: `Found existing Application ID (${existingAppId.slice(0, 8)}...). Use it?`,
+      initialValue: true,
+    });
+    handleCancel(reuse);
+    applicationId = reuse ? existingAppId : "";
   } else {
     applicationId = "";
   }
 
   if (!applicationId) {
-    applicationId = (await rl.question("  Application ID: ")).trim();
+    const id = await p.text({ message: "Application ID", placeholder: "from teller.io/dashboard" });
+    handleCancel(id);
+    applicationId = (id as string).trim();
   }
 
   if (!applicationId) {
@@ -278,15 +282,17 @@ export async function tellerInitFlow(
   }
 
   // ── Step 4: Environment ─────────────────────────────────────────
-  printSection("Step 2: Environment");
-  console.log("  1) sandbox    — test data, no real bank");
-  console.log("  2) development — real banks, development credentials");
-  console.log("  3) production  — live data");
-  console.log("");
-  const envChoice = (await rl.question("  Select environment [1]: ")).trim() || "1";
-  const envIndex = parseInt(envChoice, 10) - 1;
-  const environment: TellerEnvironment = ENVIRONMENTS[envIndex] ?? "sandbox";
-  console.log(`  Using: ${environment}`);
+  const environment = await p.select({
+    message: "Environment",
+    options: [
+      { value: "sandbox" as TellerEnvironment, label: "Sandbox", hint: "test data, no real bank" },
+      { value: "development" as TellerEnvironment, label: "Development", hint: "real banks, development credentials" },
+      { value: "production" as TellerEnvironment, label: "Production", hint: "live data" },
+    ],
+  }) as TellerEnvironment;
+  handleCancel(environment);
+
+  p.log.info(`Using: ${environment}`);
 
   // ── Step 5: mTLS certs (dev/prod only) ──────────────────────────
   let certificatePath: string | undefined;
@@ -294,41 +300,60 @@ export async function tellerInitFlow(
 
   if (environment !== "sandbox") {
     printSection("Step 3: mTLS Certificates");
-    console.log("  Development and production environments require mTLS certificates.");
-    console.log("  Download them from the Teller dashboard.\n");
+    p.log.info("Development and production environments require mTLS certificates.\nDownload them from the Teller dashboard.");
 
-    certificatePath = (await rl.question("  Certificate path (.pem): ")).trim();
-    privateKeyPath = (await rl.question("  Private key path (.pem): ")).trim();
+    const cert = await p.text({ message: "Certificate path (.pem)" });
+    handleCancel(cert);
+    certificatePath = (cert as string).trim();
+
+    const key = await p.text({ message: "Private key path (.pem)" });
+    handleCancel(key);
+    privateKeyPath = (key as string).trim();
   }
 
   // ── Step 6-8: Teller Connect (local server) ─────────────────────
   printSection("Step 3: Connect your bank");
-  console.log("  Opening Teller Connect in your browser...");
-  console.log("  Complete the bank linking process, then return here.\n");
 
+  if (environment === "sandbox") {
+    p.note(
+      "Use these test credentials in Teller Connect:\n\n" +
+      "  Username:  username\n" +
+      "  Password:  password",
+      "Sandbox credentials",
+    );
+  }
+
+  p.log.info("Opening Teller Connect in your browser...\nComplete the bank linking process, then return here.");
+
+  const s = p.spinner();
+  s.start("Waiting for Teller Connect...");
   const { accessToken } = await serveTellerConnect(applicationId, environment);
-  console.log("\n  Access token received.");
+  s.stop("Access token received.");
 
   // ── Step 9: Validate accounts ───────────────────────────────────
   printSection("Step 4: Verify connection");
-  console.log("  Fetching accounts from Teller...\n");
+  const vs = p.spinner();
+  vs.start("Fetching accounts from Teller...");
   const accounts = await fetchTellerAccounts(accessToken);
+  vs.stop(`Found ${accounts.length} account(s).`);
 
   if (accounts.length === 0) {
-    console.log("  Warning: No open accounts found. The connection may still be valid.");
+    p.log.warn("No open accounts found. The connection may still be valid.");
   } else {
     printAccounts(accounts);
   }
 
   // ── Step 10: Label ──────────────────────────────────────────────
-  console.log("");
-  const label = (
-    await rl.question("  Label for this connection [My Bank]: ")
-  ).trim() || "My Bank";
+  const label = await p.text({
+    message: "Label for this connection",
+    placeholder: "My Bank",
+    defaultValue: "My Bank",
+  });
+  handleCancel(label);
 
   return {
     provider: "teller",
-    label,
+    label: label as string,
     config: {
       accessToken,
       ...(certificatePath ? { certificatePath } : {}),
