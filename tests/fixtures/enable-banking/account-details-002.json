@@ -1,0 +1,9 @@
+{
+  "uid": "acc-uid-002",
+  "account_id": {
+    "iban": "PL72109010140000071219812999"
+  },
+  "details": "Konto Oszczednosciowe",
+  "product": "Konto Oszczednosciowe",
+  "currency": "PLN"
+}

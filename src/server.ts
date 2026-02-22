@@ -69,7 +69,7 @@ const handlers: Record<string, ToolHandler> = {
 
 export async function startServer(): Promise<void> {
   const server = new Server(
-    { name: "bank-mcp", version: "0.1.2" },
+    { name: "bank-mcp", version: "0.1.3" },
     { capabilities: { tools: {} } },
   );
 
