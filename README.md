@@ -27,6 +27,7 @@ Most people manage their finances by logging into bank portals, downloading CSVs
 - [Quick Start](#quick-start)
 - [Client Setup](#client-setup)
 - [Available Tools](#available-tools)
+- [Screenshots](#screenshots)
 - [Architecture](#architecture)
 - [Provider Setup Guides](#provider-setup-guides)
 - [Caching](#caching)
@@ -65,10 +66,11 @@ HSBC · BNP Paribas · Deutsche Bank · ING · Crédit Agricole · Santander · 
 ### 1. Configure a bank connection
 
 ```bash
-npx @bank-mcp/server init
+npx @bank-mcp/server init       # Credential-based setup (all providers)
+npx @bank-mcp/server connect    # Browser-based OAuth (Enable Banking, Tink)
 ```
 
-The interactive wizard walks you through selecting a provider and entering credentials. It validates your connection by fetching accounts before saving.
+`init` walks you through entering credentials manually. `connect` automates the browser-based OAuth flow — it opens your bank's login page, handles the callback, and saves the session automatically.
 
 ### 2. Add to your MCP client
 
@@ -260,38 +262,52 @@ Add to your Zed `settings.json`:
 | `get_balance` | Current and available balances | `accountId`, `connectionId?` |
 | `spending_summary` | Expenses grouped by merchant or category | `accountId`, `from?`, `to?`, `groupBy?` |
 
-### Example Conversations
+## Screenshots
 
-Here's what real interactions look like:
+All examples below use Claude Code with the mock provider (`npx @bank-mcp/server --mock`).
 
-**Checking balances:**
-> **You:** What's in my bank accounts?
->
-> **Claude:** You have 3 accounts across 2 connections:
-> | Account | Balance | Available |
-> |---------|---------|-----------|
-> | ING Checking | €3,241.50 | €3,141.50 |
-> | ING Savings | €12,800.00 | €12,800.00 |
-> | Revolut Main | €891.23 | €891.23 |
+**Listing accounts** — *"List my bank accounts"*
 
-**Spending analysis:**
-> **You:** Show my spending by category this month
->
-> **Claude:** Here's your spending breakdown for February 2026:
-> | Category | Amount | Transactions |
-> |----------|--------|-------------|
-> | Groceries | €487.30 | 12 |
-> | Restaurants | €213.50 | 8 |
-> | Transport | €156.00 | 5 |
-> | Subscriptions | €89.97 | 4 |
+![Listing bank accounts](screenshots/1-bank-accounts.png)
 
-**Searching transactions:**
-> **You:** Find all Amazon purchases over $50 in the last 3 months
->
-> **Claude:** Found 7 Amazon transactions over $50 since November:
-> - Dec 15: Amazon.com — $129.99 (Electronics)
-> - Dec 3: Amazon.com — $67.50 (Books)
-> - ...
+**Checking balances** — *"What's my current balance?"*
+
+![Account balances](screenshots/2-balance.png)
+
+**Transaction history** — *"Show my transactions from the last 15 days"*
+
+![Recent transactions with spending breakdown](screenshots/3-list-transactions.png)
+
+**Searching transactions** — *"Find all Starbucks purchases in last 2 weeks"*
+
+![Finding Starbucks purchases](screenshots/4-find-transactions.png)
+
+**Spending by category** — *"Show my spending by category this month"*
+
+![Category breakdown with chart](screenshots/5-transactions-by-category.png)
+
+<details>
+<summary><strong>More examples</strong> (merchant analysis, subscriptions, grocery comparison, financial overview)</summary>
+
+<br>
+
+**Top merchants** — *"Which merchants am I spending the most at?"*
+
+![Merchant spending breakdown](screenshots/6-group-by-merchants.png)
+
+**Subscription tracking** — *"Show my recurring subscriptions"*
+
+![Recurring subscription analysis](screenshots/7-search-summary.png)
+
+**Grocery comparison** — *"Compare Trader Joe's vs Whole Foods spending"*
+
+![Trader Joe's vs Whole Foods analysis](screenshots/8-search-merchants.png)
+
+**Full financial picture** — *"Give me my full February financial picture"*
+
+![Monthly income, expenses, and savings](screenshots/9-income-spending-data.png)
+
+</details>
 
 ## Architecture
 
