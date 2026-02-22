@@ -164,6 +164,15 @@ export class TellerProvider extends BankProvider {
     const tc = parseConfig(config);
     const agent = createAgent(tc);
 
+    // Fetch account to get currency (Teller transactions don't include it)
+    const accounts = (await tellerFetch(
+      `${API_BASE}/accounts`,
+      tc,
+      agent,
+    )) as TellerAccount[];
+    const account = accounts.find((a) => a.id === accountId);
+    const currency = account?.currency || "USD";
+
     // Teller uses cursor pagination with from_id + count
     const allTx: Transaction[] = [];
     let fromId: string | undefined;
@@ -180,7 +189,7 @@ export class TellerProvider extends BankProvider {
       if (page.length === 0) break;
 
       for (const raw of page) {
-        const tx = normalizeTransaction(raw);
+        const tx = normalizeTransaction(raw, currency);
 
         // Apply date filter (Teller doesn't support server-side date filtering)
         if (filter?.dateFrom && tx.date < filter.dateFrom) continue;
@@ -225,6 +234,15 @@ export class TellerProvider extends BankProvider {
     const tc = parseConfig(config);
     const agent = createAgent(tc);
 
+    // Fetch account to get currency (balance endpoint doesn't include it)
+    const accounts = (await tellerFetch(
+      `${API_BASE}/accounts`,
+      tc,
+      agent,
+    )) as TellerAccount[];
+    const account = accounts.find((a) => a.id === accountId);
+    const currency = account?.currency || "USD";
+
     const bal = (await tellerFetch(
       `${API_BASE}/accounts/${accountId}/balances`,
       tc,
@@ -237,7 +255,7 @@ export class TellerProvider extends BankProvider {
       balances.push({
         accountId,
         amount: parseFloat(bal.ledger),
-        currency: "USD",
+        currency,
         type: "ledger",
       });
     }
@@ -246,7 +264,7 @@ export class TellerProvider extends BankProvider {
       balances.push({
         accountId,
         amount: parseFloat(bal.available),
-        currency: "USD",
+        currency,
         type: "available",
       });
     }
@@ -301,7 +319,7 @@ interface TellerBalance {
  * Teller's amounts are pre-signed strings ("-86.46" for debits).
  * Categories are flat (~28 values). Counterparty is already extracted.
  */
-function normalizeTransaction(raw: TellerTransaction): Transaction {
+function normalizeTransaction(raw: TellerTransaction, currency: string): Transaction {
   const amount = parseFloat(raw.amount);
   const isDebit = amount < 0;
   const merchantName = raw.details?.counterparty?.name || undefined;
@@ -311,7 +329,7 @@ function normalizeTransaction(raw: TellerTransaction): Transaction {
     accountId: raw.account_id,
     date: raw.date,
     amount,
-    currency: "USD",
+    currency,
     description: merchantName || raw.description,
     merchantName,
     category: raw.details?.category || undefined,

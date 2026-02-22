@@ -1,0 +1,9 @@
+{
+  "uid": "acc-uid-001",
+  "account_id": {
+    "iban": "PL61109010140000071219812874"
+  },
+  "details": "Konto Direct",
+  "product": "Konto Direct",
+  "currency": "PLN"
+}

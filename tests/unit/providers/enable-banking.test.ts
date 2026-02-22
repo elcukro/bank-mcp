@@ -17,6 +17,8 @@ const mockedFetch = vi.mocked(httpFetch);
 
 // Load fixtures
 import sessionFixture from "../../fixtures/enable-banking/session.json";
+import accountDetails001 from "../../fixtures/enable-banking/account-details-001.json";
+import accountDetails002 from "../../fixtures/enable-banking/account-details-002.json";
 import transactionsFixture from "../../fixtures/enable-banking/transactions.json";
 import balancesFixture from "../../fixtures/enable-banking/balances.json";
 
@@ -52,8 +54,12 @@ describe("EnableBankingProvider", () => {
   });
 
   describe("listAccounts", () => {
-    it("fetches accounts from session endpoint", async () => {
-      mockedFetch.mockResolvedValueOnce(sessionFixture);
+    it("fetches accounts from session then details endpoints", async () => {
+      // 1st call: session (returns UIDs), 2nd+3rd: account details
+      mockedFetch
+        .mockResolvedValueOnce(sessionFixture)
+        .mockResolvedValueOnce(accountDetails001)
+        .mockResolvedValueOnce(accountDetails002);
 
       const accounts = await provider.listAccounts(TEST_CONFIG);
 
@@ -63,6 +69,7 @@ describe("EnableBankingProvider", () => {
       expect(accounts[0].currency).toBe("PLN");
       expect(accounts[1].name).toBe("Konto Oszczednosciowe");
 
+      // Should call session endpoint first
       expect(mockedFetch).toHaveBeenCalledWith(
         expect.stringContaining("/sessions/ses_test123456"),
         expect.objectContaining({
@@ -71,6 +78,16 @@ describe("EnableBankingProvider", () => {
           }),
         }),
       );
+      // Then call details for each account
+      expect(mockedFetch).toHaveBeenCalledWith(
+        expect.stringContaining("/accounts/acc-uid-001/details"),
+        expect.anything(),
+      );
+      expect(mockedFetch).toHaveBeenCalledWith(
+        expect.stringContaining("/accounts/acc-uid-002/details"),
+        expect.anything(),
+      );
+      expect(mockedFetch).toHaveBeenCalledTimes(3);
     });
 
     it("returns cached accounts from config if available", async () => {

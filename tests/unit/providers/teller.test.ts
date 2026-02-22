@@ -118,11 +118,19 @@ describe("TellerProvider", () => {
   });
 
   describe("listTransactions", () => {
-    it("normalizes debit transactions", async () => {
-      requestHandler.mockReturnValue({
-        statusCode: 200,
-        body: transactionsFixture,
+    // listTransactions now calls /accounts first (for currency), then /accounts/{id}/transactions
+    function mockTransactionsEndpoints() {
+      requestHandler.mockImplementation((url: string) => {
+        if (url.includes("/transactions")) {
+          return { statusCode: 200, body: transactionsFixture };
+        }
+        // /accounts endpoint (for currency lookup)
+        return { statusCode: 200, body: accountsFixture };
       });
+    }
+
+    it("normalizes debit transactions", async () => {
+      mockTransactionsEndpoints();
 
       const txs = await provider.listTransactions(TEST_CONFIG, "acc_test001");
 
@@ -136,10 +144,7 @@ describe("TellerProvider", () => {
     });
 
     it("normalizes credit transactions", async () => {
-      requestHandler.mockReturnValue({
-        statusCode: 200,
-        body: transactionsFixture,
-      });
+      mockTransactionsEndpoints();
 
       const txs = await provider.listTransactions(TEST_CONFIG, "acc_test001");
 
@@ -152,10 +157,7 @@ describe("TellerProvider", () => {
     });
 
     it("handles null counterparty name", async () => {
-      requestHandler.mockReturnValue({
-        statusCode: 200,
-        body: transactionsFixture,
-      });
+      mockTransactionsEndpoints();
 
       const txs = await provider.listTransactions(TEST_CONFIG, "acc_test001");
 
@@ -167,10 +169,7 @@ describe("TellerProvider", () => {
     });
 
     it("filters by type", async () => {
-      requestHandler.mockReturnValue({
-        statusCode: 200,
-        body: transactionsFixture,
-      });
+      mockTransactionsEndpoints();
 
       const txs = await provider.listTransactions(TEST_CONFIG, "acc_test001", {
         type: "credit",
@@ -181,10 +180,7 @@ describe("TellerProvider", () => {
     });
 
     it("filters by amount range", async () => {
-      requestHandler.mockReturnValue({
-        statusCode: 200,
-        body: transactionsFixture,
-      });
+      mockTransactionsEndpoints();
 
       const txs = await provider.listTransactions(TEST_CONFIG, "acc_test001", {
         amountMin: 40,
@@ -203,9 +199,13 @@ describe("TellerProvider", () => {
 
   describe("getBalance", () => {
     it("returns ledger and available balances", async () => {
-      requestHandler.mockReturnValue({
-        statusCode: 200,
-        body: balancesFixture,
+      // getBalance now calls /accounts first (for currency), then /accounts/{id}/balances
+      requestHandler.mockImplementation((url: string) => {
+        if (url.endsWith("/balances")) {
+          return { statusCode: 200, body: balancesFixture };
+        }
+        // /accounts endpoint
+        return { statusCode: 200, body: accountsFixture };
       });
 
       const balances = await provider.getBalance(TEST_CONFIG, "acc_test001");

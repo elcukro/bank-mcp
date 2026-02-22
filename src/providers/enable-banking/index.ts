@@ -82,19 +82,37 @@ export class EnableBankingProvider extends BankProvider {
       }));
     }
 
-    // Otherwise fetch from API
+    // 1. Get account UIDs from the session
     const token = generateJwt(eb.appId, eb.privateKeyPath);
-    const data = (await httpFetch(`${API_BASE}/sessions/${eb.sessionId}`, {
+    const session = (await httpFetch(`${API_BASE}/sessions/${eb.sessionId}`, {
       headers: authHeaders(token),
-    })) as { accounts: Array<{ uid: string; iban: string; account_name?: string; currency?: string }> };
+    })) as { accounts: string[] };
 
-    return data.accounts.map((a) => ({
-      uid: a.uid,
-      iban: a.iban,
-      name: a.account_name || a.iban,
-      currency: a.currency || "EUR",
-      connectionId: "",
-    }));
+    // 2. Fetch details for each account (IBAN, name, currency)
+    const accounts: BankAccount[] = [];
+    for (const uid of session.accounts) {
+      const details = (await httpFetch(
+        `${API_BASE}/accounts/${uid}/details`,
+        { headers: authHeaders(generateJwt(eb.appId, eb.privateKeyPath)) },
+      )) as {
+        uid: string;
+        account_id?: { iban?: string; other?: unknown };
+        name?: string;
+        details?: string;
+        product?: string;
+        currency?: string;
+      };
+
+      accounts.push({
+        uid: details.uid || uid,
+        iban: details.account_id?.iban || uid,
+        name: details.details || details.product || details.name || details.account_id?.iban || uid,
+        currency: details.currency || "EUR",
+        connectionId: "",
+      });
+    }
+
+    return accounts;
   }
 
   async listTransactions(
