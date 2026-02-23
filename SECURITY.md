@@ -10,7 +10,7 @@
 
 If you discover a security vulnerability in bank-mcp, **please do not open a public issue.**
 
-Instead, email **[luke@elcukro.dev](mailto:luke@elcukro.dev)** with:
+Instead, email **[elcukro@gmail.com](mailto:elcukro@gmail.com)** with:
 
 - A description of the vulnerability
 - Steps to reproduce
