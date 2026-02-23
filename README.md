@@ -366,66 +366,65 @@ abstract class BankProvider {
 
 **What you need:**
 - [ ] An [Enable Banking](https://enablebanking.com) account with a registered app
-- [ ] Your RSA private key (`.pem` file)
-- [ ] An active session ID from the OAuth consent flow
+- [ ] Your RSA private key (`.pem` file, downloaded when you created the app)
 
 ```bash
 npx @bank-mcp/server init
-# Select: Enable Banking (PSD2)
-# Enter: App ID, key path, session ID
+# Select: Enable Banking → enter App ID + key path
+# Pick your country → select your bank
+# Log in at your bank → paste the redirect URL
+# → Session created, accounts verified!
 ```
 
-> **Tip:** Sessions expire after 90 days (PSD2 regulation). You'll need to re-authenticate through the consent flow periodically. The server logs a clear message when a session expires.
+> **Tip:** The wizard handles the entire OAuth flow — redirect URI setup, bank selection, and session creation. Sessions expire after 90 days (PSD2 regulation); re-run `init` to refresh.
 
 ### Teller (US Banks)
 
 **What you need:**
 - [ ] A [Teller](https://teller.io) developer account
-- [ ] Your client certificate and private key (`.zip` download from the Teller dashboard)
-- [ ] An access token from a Teller Connect enrollment
+- [ ] Your Application ID (from the Teller dashboard)
 
 ```bash
-# Extract your certificate
-mkdir -p ~/.bank-mcp/keys/teller
-unzip ~/Downloads/teller.zip -d ~/.bank-mcp/keys/teller/
-chmod 600 ~/.bank-mcp/keys/teller/*.pem
-
-# Run setup
 npx @bank-mcp/server init
-# Select: Teller (US Banks)
-# Enter: certificate path, key path, access token
+# Select: Teller → enter Application ID
+# Pick environment (sandbox for testing)
+# → Teller Connect opens in your browser
+# → Link your bank, token captured automatically!
 ```
 
-> **Tip:** Teller uses mutual TLS (mTLS) — your app authenticates at the TLS layer via client certificate, then individual enrollments authenticate via access token. Free tier supports up to 100 live connections.
+> **Tip:** Start with **sandbox** — no certificates needed, instant test data. For development/production, the wizard prompts for mTLS certificate paths. Free tier supports up to 100 live connections.
 
 ### Plaid (US/CA/EU)
 
 **What you need:**
 - [ ] A [Plaid](https://plaid.com) developer account (free signup)
-- [ ] Your Client ID and Secret (from the Plaid dashboard)
-- [ ] An access token from a Plaid Link enrollment
+- [ ] Your Client ID and Secret (from the [Plaid dashboard](https://dashboard.plaid.com/developers/keys))
 
 ```bash
 npx @bank-mcp/server init
-# Select: Plaid (US/CA/EU)
-# Enter: client ID, secret, access token, environment
+# Select: Plaid → enter client ID + secret
+# Pick environment (sandbox for testing)
+# → Sandbox: token created automatically!
+# → Dev/Prod: paste an existing access token
 ```
 
-> **Tip:** Start with the `sandbox` environment (fake data, instant setup). Plaid provides the richest transaction categorization — 104 sub-categories with confidence scores — which makes it ideal for LLM-driven spending analysis.
+> **Tip:** Start with **sandbox** — the wizard auto-creates a test token, no browser needed. Plaid provides the richest transaction categorization — 104 sub-categories with confidence scores — ideal for LLM-driven spending analysis.
 
 ### Tink (EU Open Banking)
 
 **What you need:**
 - [ ] A [Tink](https://tink.com) developer account (free for testing)
-- [ ] An OAuth2 access token (from the Tink Console or your OAuth2 flow)
+- [ ] Your Client ID and Client Secret (from the [Tink Console](https://console.tink.com))
 
 ```bash
 npx @bank-mcp/server init
-# Select: Tink (EU Open Banking)
-# Enter: access token
+# Select: Tink → enter Client ID + Secret
+# Pick your market (country)
+# → Tink Link opens in your browser
+# → Connect your bank, paste redirect URL
 ```
 
-> **Tip:** Tink covers 3,400+ banks across Europe. Transactions include PFM (Personal Finance Management) categories with merchant enrichment, and amounts use fixed-point decimals — no floating-point rounding surprises.
+> **Tip:** Tink covers 3,400+ banks across Europe. For sandbox, use Demo Bank with test credentials (shown in the wizard). Transactions include PFM categories with merchant enrichment.
 
 ## Caching
 
@@ -463,7 +462,7 @@ bank-mcp handles sensitive financial credentials. Its security posture is built 
 
 - **Read-only by design** — the `BankProvider` interface exposes only read methods (`listAccounts`, `listTransactions`, `getBalance`). There are no write methods — no transfers, no account modifications, no payment initiation. This is enforced at the type level, not by convention.
 - **No network listener** — bank-mcp runs as a stdio process (stdin/stdout), not an HTTP server. There is no open port, no attack surface from the network.
-- **Minimal dependencies** — only 3 runtime dependencies (`@modelcontextprotocol/sdk`, `jsonwebtoken`, `zod`). Fewer dependencies means fewer supply chain risks.
+- **Minimal dependencies** — only 4 runtime dependencies (`@modelcontextprotocol/sdk`, `@clack/prompts`, `jsonwebtoken`, `zod`). Fewer dependencies means fewer supply chain risks.
 - **Open source** — every line is auditable. No obfuscated code, no compiled blobs, no telemetry.
 
 ### Credential Storage
@@ -511,7 +510,7 @@ The pluggable architecture makes it straightforward to add support for additiona
 1. **Create your provider** at `src/providers/your-provider/index.ts`
 2. **Extend `BankProvider`** — implement `listAccounts`, `listTransactions`, `getBalance`, and `getConfigSchema`
 3. **Register it** in `src/providers/registry.ts`
-4. **Add config fields** for the init wizard (the schema drives the interactive prompts automatically)
+4. **Add an init flow** at `src/init/flows/your-provider.ts` — interactive setup using `@clack/prompts`
 
 See [`src/providers/enable-banking/`](src/providers/enable-banking/) as a reference implementation. The mock provider at [`src/providers/mock/`](src/providers/mock/) is also useful for understanding the expected data shapes.
 

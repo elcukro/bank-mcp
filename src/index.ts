@@ -5,8 +5,7 @@
  *
  * Usage:
  *   npx @bank-mcp/server            Start MCP server (for MCP clients)
- *   npx @bank-mcp/server init       Guided setup wizard (all providers)
- *   npx @bank-mcp/server connect    Alias for init (backward compat)
+ *   npx @bank-mcp/server init       Guided setup wizard
  *   npx @bank-mcp/server refresh    Re-fetch accounts for existing connections
  *   npx @bank-mcp/server --mock     Start with mock data (no config needed)
  */
