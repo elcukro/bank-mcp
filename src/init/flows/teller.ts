@@ -5,6 +5,8 @@
 
 import * as p from "@clack/prompts";
 import { createServer, type Server } from "node:http";
+import { request as httpsRequest } from "node:https";
+import { readFileSync } from "node:fs";
 import { openBrowser } from "../../connect/browser.js";
 import { printSection, printAccounts, askWithBrowserOpen, handleCancel } from "../ui.js";
 import type { BankAccount } from "../../types.js";
@@ -213,18 +215,57 @@ interface TellerAccount {
   enrollment_id: string;
 }
 
-async function fetchTellerAccounts(accessToken: string): Promise<BankAccount[]> {
+async function fetchTellerAccounts(
+  accessToken: string,
+  certificatePath?: string,
+  privateKeyPath?: string,
+): Promise<BankAccount[]> {
   const credentials = Buffer.from(`${accessToken}:`).toString("base64");
-  const res = await fetch(TELLER_ACCOUNTS_URL, {
-    headers: { Authorization: `Basic ${credentials}` },
-  });
 
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`Teller API error ${res.status}: ${body}`);
+  let accounts: TellerAccount[];
+
+  if (certificatePath && privateKeyPath) {
+    // Development/Production: use node:https with mTLS client certificate
+    const url = new URL(TELLER_ACCOUNTS_URL);
+    const body = await new Promise<string>((resolve, reject) => {
+      const req = httpsRequest(
+        {
+          hostname: url.hostname,
+          path: url.pathname,
+          method: "GET",
+          cert: readFileSync(certificatePath),
+          key: readFileSync(privateKeyPath),
+          headers: { Authorization: `Basic ${credentials}` },
+        },
+        (res) => {
+          let data = "";
+          res.on("data", (chunk: Buffer) => (data += chunk.toString()));
+          res.on("end", () => {
+            if (res.statusCode && res.statusCode >= 400) {
+              reject(new Error(`Teller API error ${res.statusCode}: ${data}`));
+            } else {
+              resolve(data);
+            }
+          });
+        },
+      );
+      req.on("error", reject);
+      req.end();
+    });
+    accounts = JSON.parse(body) as TellerAccount[];
+  } else {
+    // Sandbox: plain fetch is fine (no mTLS required)
+    const res = await fetch(TELLER_ACCOUNTS_URL, {
+      headers: { Authorization: `Basic ${credentials}` },
+    });
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`Teller API error ${res.status}: ${body}`);
+    }
+
+    accounts = (await res.json()) as TellerAccount[];
   }
-
-  const accounts: TellerAccount[] = await res.json() as TellerAccount[];
 
   return accounts
     .filter((a) => a.status === "open")
@@ -334,7 +375,7 @@ export async function tellerInitFlow(
   printSection("Step 4: Verify connection");
   const vs = p.spinner();
   vs.start("Fetching accounts from Teller...");
-  const accounts = await fetchTellerAccounts(accessToken);
+  const accounts = await fetchTellerAccounts(accessToken, certificatePath, privateKeyPath);
   vs.stop(`Found ${accounts.length} account(s).`);
 
   if (accounts.length === 0) {
