@@ -21,6 +21,13 @@ vi.mock("../../../src/config.js", () => ({
 import { spendingSummary } from "../../../src/tools/spending-summary.js";
 
 describe("spendingSummary", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-01T12:00:00.000Z"));
+    return () => {
+      vi.useRealTimers();
+    };
+  });
   it("groups expenses by merchant", async () => {
     const result = await spendingSummary({
       dateFrom: "2026-01-01",

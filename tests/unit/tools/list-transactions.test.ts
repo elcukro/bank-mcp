@@ -19,8 +19,16 @@ vi.mock("../../../src/config.js", () => ({
 }));
 
 import { listTransactions } from "../../../src/tools/list-transactions.js";
+import { beforeEach } from "vitest";
 
 describe("listTransactions", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-01T12:00:00.000Z"));
+    return () => {
+      vi.useRealTimers();
+    };
+  });
   it("returns transactions sorted by date descending", async () => {
     const txs = await listTransactions({
       dateFrom: "2026-01-01",

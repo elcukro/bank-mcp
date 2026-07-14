@@ -14,6 +14,7 @@ import { httpFetch, type FetchOptions } from "./utils/http.js";
 import type { ConnectionConfig } from "./types.js";
 
 const API_BASE = "https://api.enablebanking.com";
+export const DETAILS_PENDING = "(details pending)";
 
 export async function runRefresh(): Promise<void> {
   const config = loadConfig();
@@ -85,9 +86,23 @@ async function refreshConnection(conn: ConnectionConfig): Promise<boolean> {
   const oldMap = new Map(
     oldAccounts.map((a) => [(a as { uid: string }).uid, a]),
   );
-  const accounts: Array<{ uid: string; iban: string; name: string; currency: string }> = [];
 
-  for (const uid of session.accounts) {
+  // Sort UIDs to fetch details for pending accounts first (to work around rate limits)
+  const priorityOrder = [...session.accounts].sort((aUid, bUid) => {
+    const aCached = oldMap.get(aUid) as { name?: string } | undefined;
+    const bCached = oldMap.get(bUid) as { name?: string } | undefined;
+
+    const aPending = !aCached || aCached.name === DETAILS_PENDING;
+    const bPending = !bCached || bCached.name === DETAILS_PENDING;
+
+    if (aPending && !bPending) return -1;
+    if (!aPending && bPending) return 1;
+    return 0;
+  });
+
+  const fetchedDetails = new Map<string, { uid: string; iban: string; name: string; currency: string }>();
+
+  for (const uid of priorityOrder) {
     try {
       const detailToken = generateJwt(appId, privateKeyPath);
       const details = (await fetchWithRetry(
@@ -109,20 +124,29 @@ async function refreshConnection(conn: ConnectionConfig): Promise<boolean> {
         currency: details.currency || "EUR",
       };
 
-      accounts.push(account);
+      fetchedDetails.set(uid, account);
       console.log(`    + ${account.iban} (${account.name}, ${account.currency})`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       // Keep existing cached data for this account if available
       const cached = oldMap.get(uid) as { uid: string; iban: string; name: string; currency: string } | undefined;
       if (cached) {
-        accounts.push(cached);
+        fetchedDetails.set(uid, cached);
         console.log(`    ~ ${cached.iban} (${cached.name}) — kept cached (${msg})`);
       } else {
         // No cache — add stub so we know the account exists
-        accounts.push({ uid, iban: uid, name: "(details pending)", currency: "EUR" });
+        const stub = { uid, iban: uid, name: DETAILS_PENDING, currency: "EUR" };
+        fetchedDetails.set(uid, stub);
         console.log(`    ? ${uid} — could not fetch details (${msg})`);
       }
+    }
+  }
+
+  const accounts: Array<{ uid: string; iban: string; name: string; currency: string }> = [];
+  for (const uid of session.accounts) {
+    const acc = fetchedDetails.get(uid);
+    if (acc) {
+      accounts.push(acc);
     }
   }
 
